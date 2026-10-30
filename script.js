@@ -508,3 +508,22 @@ downloadBtn.addEventListener('click', () => {
     downloadBtn.disabled = false;
   }
 });
+// Lógica para el botón de Prenda Negra
+const darkGarmentPresetBtn = document.getElementById('darkGarmentPresetBtn');
+if (darkGarmentPresetBtn) {
+  darkGarmentPresetBtn.addEventListener('click', () => {
+    invertToggle.checked = !invertToggle.checked;
+    
+    if (invertToggle.checked) {
+      darkGarmentPresetBtn.style.background = 'linear-gradient(135deg, #cfd9df 0%, #90a4ae 100%)';
+      darkGarmentPresetBtn.style.color = '#0b0c10';
+      darkGarmentPresetBtn.style.borderColor = '#ffffff';
+    } else {
+      darkGarmentPresetBtn.style.background = '#0b0c10';
+      darkGarmentPresetBtn.style.color = '#ffffff';
+      darkGarmentPresetBtn.style.borderColor = '#90a4ae';
+    }
+
+    if (loadedImage) processHalftone();
+  });
+}
