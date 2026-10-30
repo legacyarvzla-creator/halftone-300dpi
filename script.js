@@ -213,12 +213,10 @@ function adjustChannel(val, blackPoint, whitePoint, gamma) {
   return v;
 }
 
-// Función para evaluar si un píxel coincide con el filtro de color seleccionado
 function filterColorPixel(r, g, b, filter) {
   if (filter === 'all') return { r, g, b };
 
   let keep = false;
-  // Detección aproximada basada en dominancia de canales RGB
   if (filter === 'red') {
     keep = (r > g + 40 && r > b + 40);
   } else if (filter === 'green') {
@@ -233,7 +231,6 @@ function filterColorPixel(r, g, b, filter) {
     keep = (r > 200 && g > 200 && b > 200);
   }
 
-  // Si no coincide con el color seleccionado, se neutraliza (blanco/sin tinta)
   return keep ? { r, g, b } : { r: 255, g: 255, b: 255 };
 }
 
@@ -247,15 +244,11 @@ function processHalftone() {
   canvas.width = sourceToProcess.width;
   canvas.height = sourceToProcess.height;
 
-  // IMPORTANTE: Esto limpia el canvas preservando la transparencia nativa (Alfa = 0)
   ctx.clearRect(0, 0, canvas.width, canvas.height);
-  
-  // Dibujamos temporalmente para leer los datos originales
   ctx.drawImage(sourceToProcess, 0, 0);
   const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
   const data = imageData.data;
 
-  // Limpiamos de nuevo el canvas para empezar a pintar los puntos limpios sobre transparente
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
   const blackPoint = parseInt(blackPointInput.value, 10);
@@ -280,161 +273,12 @@ function processHalftone() {
     const bufferB = new Float32Array(width * height);
 
     for (let i = 0; i < data.length; i += 4) {
-      // Si el píxel original es transparente, lo ignoramos marcándolo con -1
       if (data[i + 3] < 20) {
         bufferR[i / 4] = -1;
         continue;
       }
 
       let r = data[i], g = data[i+1], b = data[i+2];
-      const filtered = filterColorPixel(r, g, b, activeColorFilter);
-
-      r = adjustChannel(filtered.r, blackPoint, whitePoint, gamma);
-      g = adjustChannel(filtered.g, blackPoint, whitePoint, gamma);
-      b = adjustChannel(filtered.b, blackPoint, whitePoint, gamma);
-
-      if (isInverted) {
-        r = 255 - r;
-        g = 255 - g;
-        b = 255 - b;
-      }
-
-      bufferR[i / 4] = r;
-      bufferG[i / 4] = g;
-      bufferB[i / 4] = b;
-    }
-
-    for (let y = 0; y < height; y++) {
-      for (let x = 0; x < width; x++) {
-        const idx = y * width + x;
-        const outIdx = idx * 4;
-
-        // Si el búfer tiene -1, dejamos el píxel completamente transparente (Alpha = 0)
-        if (bufferR[idx] === -1) {
-          outData[outIdx + 3] = 0;
-          continue;
-        }
-
-        if (isColorMode) {
-          const oldR = bufferR[idx], oldG = bufferG[idx], oldB = bufferB[idx];
-          const newR = oldR < 128 ? 0 : 255;
-          const newG = oldG < 128 ? 0 : 255;
-          const newB = oldB < 128 ? 0 : 255;
-
-          outData[outIdx] = newR;
-          outData[outIdx+1] = newG;
-          outData[outIdx+2] = newB;
-          outData[outIdx+3] = 255; // Píxel opaco solo donde hay punto
-
-          const errR = oldR - newR, errG = oldG - newG, errB = oldB - newB;
-          if (x + 1 < width && bufferR[idx + 1] !== -1) {
-            bufferR[idx + 1] += errR * 7 / 16;
-            bufferG[idx + 1] += errG * 7 / 16;
-            bufferB[idx + 1] += errB * 7 / 16;
-          }
-          if (y + 1 < height) {
-            if (x > 0 && bufferR[idx + width - 1] !== -1) {
-              bufferR[idx + width - 1] += errR * 3 / 16;
-              bufferG[idx + width - 1] += errG * 3 / 16;
-              bufferB[idx + width - 1] += errB * 3 / 16;
-            }
-            if (bufferR[idx + width] !== -1) {
-              bufferR[idx + width] += errR * 5 / 16;
-              bufferG[idx + width] += errG * 5 / 16;
-              bufferB[idx + width] += errG * 5 / 16;
-            }
-            if (x + 1 < width && bufferR[idx + width + 1] !== -1) {
-              bufferR[idx + width + 1] += errR * 1 / 16;
-              bufferG[idx + width + 1] += errG * 1 / 16;
-              bufferB[idx + width + 1] += errB * 1 / 16;
-            }
-          }
-        } else {
-          const luma = 0.299 * bufferR[idx] + 0.587 * bufferG[idx] + 0.114 * bufferB[idx];
-          const newPixel = luma < 128 ? 0 : 255;
-          const error = luma - newPixel;
-
-          const val = isInverted ? (newPixel === 0 ? 255 : 0) : newPixel;
-          outData[outIdx] = val;
-          outData[outIdx+1] = val;
-          outData[outIdx+2] = val;
-          outData[outIdx+3] = 255; // Opaco para el punto de tinta
-
-          if (x + 1 < width && bufferR[idx + 1] !== -1) bufferR[idx + 1] += error * 7 / 16;
-          if (y + 1 < height) {
-            if (x > 0 && bufferR[idx + width - 1] !== -1) bufferR[idx + width - 1] += error * 3 / 16;
-            if (bufferR[idx + width] !== -1) bufferR[idx + width] += error * 5 / 16;
-            if (x + 1 < width && bufferR[idx + width + 1] !== -1) bufferR[idx + width + 1] += error * 1 / 16;
-          }
-        }
-      }
-    }
-    ctx.putImageData(imgOut, 0, 0);
-
-  } else {
-    // Método de tramado clásico por celdas (Halftone)
-    const angleRad = (parseFloat(screenAngleInput.value) * Math.PI) / 180;
-    const shape = dotShapeSelect.value;
-
-    for (let y = 0; y < height; y += cellSize) {
-      for (let x = 0; x < width; x += cellSize) {
-        const cx = x + cellSize / 2;
-        const cy = y + cellSize / 2;
-
-        const sampleX = Math.min(Math.max(Math.floor(cx), 0), width - 1);
-        const sampleY = Math.min(Math.max(Math.floor(cy), 0), height - 1);
-        const idx = (sampleY * width + sampleX) * 4;
-
-        // Si la celda cae en una zona transparente, la omitimos (queda transparente)
-        if (data[idx + 3] < 20) continue;
-
-        let r = data[idx], g = data[idx+1], b = data[idx+2];
-        const filtered = filterColorPixel(r, g, b, activeColorFilter);
-
-        r = adjustChannel(filtered.r, blackPoint, whitePoint, gamma);
-        g = adjustChannel(filtered.g, blackPoint, whitePoint, gamma);
-        b = adjustChannel(filtered.b, blackPoint, whitePoint, gamma);
-
-        if (isInverted) {
-          r = 255 - r;
-          g = 255 - g;
-          b = 255 - b;
-        }
-
-        let luma = 0.299 * r + 0.587 * g + 0.114 * b;
-        let brightness = luma / 255;
-        let radius = (1 - brightness) * (cellSize / 2);
-
-        if (radius > 0.3) {
-          ctx.save();
-          ctx.translate(cx, cy);
-          ctx.rotate(angleRad);
-
-          if (isColorMode) {
-            ctx.fillStyle = `rgb(${Math.round(r)}, ${Math.round(g)}, ${Math.round(b)})`;
-          } else {
-            ctx.fillStyle = isInverted ? '#ffffff' : '#000000';
-          }
-
-     
-          ctx.beginPath();
-          if (shape === 'round') {
-            ctx.arc(0, 0, radius, 0, Math.PI * 2);
-            ctx.fill();
-          } else if (shape === 'line') {
-            const lineWidth = radius * 1.8;
-            ctx.fillRect(-cellSize / 2, -lineWidth / 2, cellSize, lineWidth);
-          }
-          ctx.restore();
-        }
-      }
-    }
-  }
-}
-
-      let r = data[i], g = data[i+1], b = data[i+2];
-      
-      // Aplicar filtro de color seleccionado
       const filtered = filterColorPixel(r, g, b, activeColorFilter);
 
       r = adjustChannel(filtered.r, blackPoint, whitePoint, gamma);
@@ -638,7 +482,6 @@ downloadBtn.addEventListener('click', () => {
     downloadBtn.disabled = true;
 
     setTimeout(() => {
-      // Nos aseguramos de obtener la URL limpia directamente del canvas con alfa intacto
       const originalDataUrl = canvas.toDataURL('image/png', 1.0);
       const dpiDataUrl = setPngDpi(originalDataUrl, 300);
 
@@ -658,6 +501,7 @@ downloadBtn.addEventListener('click', () => {
     downloadBtn.disabled = false;
   }
 });
+
 // Lógica para el botón de Prenda Negra
 const darkGarmentPresetBtn = document.getElementById('darkGarmentPresetBtn');
 if (darkGarmentPresetBtn) {
