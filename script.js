@@ -4,11 +4,19 @@ const dotValue = document.getElementById('dotValue');
 const dotShapeSelect = document.getElementById('dotShape');
 const downloadBtn = document.getElementById('downloadBtn');
 
-// Nuevos elementos para el recorte
+// Controles de recorte
 const cropBgToggle = document.getElementById('cropBgToggle');
 const cropThresholdInput = document.getElementById('cropThreshold');
 const cropThresholdValue = document.getElementById('cropThresholdValue');
 const cropThresholdGroup = document.getElementById('cropThresholdGroup');
+
+// Controles de Niveles (Tone Curve)
+const blackPointInput = document.getElementById('blackPoint');
+const blackPointVal = document.getElementById('blackPointVal');
+const whitePointInput = document.getElementById('whitePoint');
+const whitePointVal = document.getElementById('whitePointVal');
+const gammaInput = document.getElementById('gammaInput');
+const gammaVal = document.getElementById('gammaVal');
 
 const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d');
@@ -17,7 +25,14 @@ let loadedImage = null;
 let dotColor = '#000000';
 let bgColor = '#ffffff';
 
-// Habilitar / deshabilitar el slider de umbral al marcar la casilla
+// Función global para los botones de reinicio (↺)
+window.resetInput = function(id, defaultValue) {
+  const el = document.getElementById(id);
+  el.value = defaultValue;
+  el.dispatchEvent(new Event('input'));
+};
+
+// Eventos de interfaz
 cropBgToggle.addEventListener('change', () => {
   if (cropBgToggle.checked) {
     cropThresholdGroup.style.opacity = '1';
@@ -32,6 +47,21 @@ cropBgToggle.addEventListener('change', () => {
 cropThresholdInput.addEventListener('input', () => {
   cropThresholdValue.textContent = cropThresholdInput.value;
   if (loadedImage && cropBgToggle.checked) processHalftone();
+});
+
+blackPointInput.addEventListener('input', () => {
+  blackPointVal.textContent = blackPointInput.value;
+  if (loadedImage) processHalftone();
+});
+
+whitePointInput.addEventListener('input', () => {
+  whitePointVal.textContent = whitePointInput.value;
+  if (loadedImage) processHalftone();
+});
+
+gammaInput.addEventListener('input', () => {
+  gammaVal.textContent = parseFloat(gammaInput.value).toFixed(2);
+  if (loadedImage) processHalftone();
 });
 
 imageInput.addEventListener('change', (e) => {
@@ -60,7 +90,7 @@ dotShapeSelect.addEventListener('change', () => {
   if (loadedImage) processHalftone();
 });
 
-// Función auxiliar para recortar los bordes negros según el umbral (0 - 255)
+// Función de recorte automático
 function getCroppedImageCanvas(img, threshold) {
   const tempCanvas = document.createElement('canvas');
   const tempCtx = tempCanvas.getContext('2d');
@@ -75,7 +105,6 @@ function getCroppedImageCanvas(img, threshold) {
 
   let top = 0, bottom = height, left = 0, right = width;
 
-  // Encontrar límite superior
   toping: for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
       const idx = (y * width + x) * 4;
@@ -86,7 +115,6 @@ function getCroppedImageCanvas(img, threshold) {
     }
   }
 
-  // Encontrar límite inferior
   bottoming: for (let y = height - 1; y >= top; y--) {
     for (let x = 0; x < width; x++) {
       const idx = (y * width + x) * 4;
@@ -97,7 +125,6 @@ function getCroppedImageCanvas(img, threshold) {
     }
   }
 
-  // Encontrar límite izquierdo
   lefting: for (let x = 0; x < width; x++) {
     for (let y = top; y < bottom; y++) {
       const idx = (y * width + x) * 4;
@@ -108,7 +135,6 @@ function getCroppedImageCanvas(img, threshold) {
     }
   }
 
-  // Encontrar límite derecho
   righting: for (let x = width - 1; x >= left; x--) {
     for (let y = top; y < bottom; y++) {
       const idx = (y * width + x) * 4;
@@ -121,8 +147,7 @@ function getCroppedImageCanvas(img, threshold) {
 
   const croppedWidth = right - left;
   const croppedHeight = bottom - top;
-
-  if (croppedWidth <= 0 || croppedHeight <= 0) return img; // Si falla, devuelve la original
+  if (croppedWidth <= 0 || croppedHeight <= 0) return img;
 
   const croppedCanvas = document.createElement('canvas');
   const croppedCtx = croppedCanvas.getContext('2d');
@@ -136,8 +161,12 @@ function getCroppedImageCanvas(img, threshold) {
 function processHalftone() {
   const gridSpacing = parseInt(dotSizeInput.value, 10);
   const shape = dotShapeSelect.value;
+  
+  // Valores de Niveles
+  const blackPoint = parseInt(blackPointInput.value, 10);
+  const whitePoint = parseInt(whitePointInput.value, 10);
+  const gamma = parseFloat(gammaInput.value);
 
-  // 1. Obtener la imagen base (recortada si la opción está activa)
   let sourceToProcess = loadedImage;
   if (cropBgToggle.checked) {
     const thresholdVal = parseInt(cropThresholdInput.value, 10);
@@ -147,14 +176,12 @@ function processHalftone() {
   canvas.width = sourceToProcess.width;
   canvas.height = sourceToProcess.height;
 
-  // 2. Dibujar en el canvas principal para lectura de píxeles
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.drawImage(sourceToProcess, 0, 0);
   
   const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
   const data = imageData.data;
 
-  // 3. Aplicar colores de fondo y procesar semitono
   ctx.fillStyle = bgColor;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   ctx.fillStyle = dotColor;
@@ -172,8 +199,24 @@ function processHalftone() {
 
       if (a < 20) continue;
 
-      const brightness = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-      const radius = (1 - brightness) * (gridSpacing / 2);
+      // 1. Luminancia base (0 a 255)
+      let luma = 0.299 * r + 0.587 * g + 0.114 * b;
+
+      // 2. Aplicar Niveles (Black Point, White Point y Gamma estilo Photoshop)
+      if (whitePoint > blackPoint) {
+        luma = (luma - blackPoint) / (whitePoint - blackPoint);
+      } else {
+        luma = 0;
+      }
+
+      luma = Math.max(0, Math.min(1, luma)); // Limitar entre 0 y 1
+
+      if (gamma !== 1) {
+        luma = Math.pow(luma, 1 / gamma);
+      }
+
+      // 3. Calcular tamaño del punto basado en el brillo ajustado
+      const radius = (1 - luma) * (gridSpacing / 2);
 
       if (radius > 0.4) {
         ctx.beginPath();
@@ -254,7 +297,7 @@ downloadBtn.addEventListener('click', () => {
   const dpiDataUrl = setPngDpi(originalDataUrl, 300);
 
   const link = document.createElement('a');
-  link.download = 'semitono_recortado_300dpi.png';
+  link.download = 'semitono_ajustado_300dpi.png';
   link.href = dpiDataUrl;
   link.click();
 });
