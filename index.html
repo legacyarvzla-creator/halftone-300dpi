@@ -19,10 +19,13 @@
     <div class="controls">
       <!-- Seleccionar Imagen -->
       <div class="control-group">
-        <label for="imageInput">Seleccionar Imagen:</label>
-        <input type="file" id="imageInput" accept="image/*">
-      </div>
-
+  <label for="methodSelect">Método de Tramado:</label>
+  <select id="methodSelect">
+    <option value="standard">Tramado Estándar (Rejilla)</option>
+    <option value="stochastic_fade">Difuminado Orgánico (DTF sin malla)</option>
+    <option value="diffusion">Difusión (Textura tipo grano / Floyd-Steinberg)</option>
+  </select>
+</div>
       <!-- Modo de Color -->
       <div class="control-group">
         <label for="colorModeSelect">Modo de Color:</label>
