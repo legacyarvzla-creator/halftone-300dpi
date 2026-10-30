@@ -1,16 +1,17 @@
 const imageInput = document.getElementById('imageInput');
-const dotSizeInput = document.getElementById('dotSize');
-const dotValue = document.getElementById('dotValue');
+const methodSelect = document.getElementById('methodSelect');
+const screenLpiInput = document.getElementById('screenLpi');
+const lpiVal = document.getElementById('lpiVal');
+const screenAngleInput = document.getElementById('screenAngle');
+const angleVal = document.getElementById('angleVal');
 const dotShapeSelect = document.getElementById('dotShape');
 const downloadBtn = document.getElementById('downloadBtn');
 
-// Controles de recorte
 const cropBgToggle = document.getElementById('cropBgToggle');
 const cropThresholdInput = document.getElementById('cropThreshold');
 const cropThresholdValue = document.getElementById('cropThresholdValue');
 const cropThresholdGroup = document.getElementById('cropThresholdGroup');
 
-// Controles de Niveles (Tone Curve)
 const blackPointInput = document.getElementById('blackPoint');
 const blackPointVal = document.getElementById('blackPointVal');
 const whitePointInput = document.getElementById('whitePoint');
@@ -25,14 +26,12 @@ let loadedImage = null;
 let dotColor = '#000000';
 let bgColor = '#ffffff';
 
-// Función global para los botones de reinicio (↺)
 window.resetInput = function(id, defaultValue) {
   const el = document.getElementById(id);
   el.value = defaultValue;
   el.dispatchEvent(new Event('input'));
 };
 
-// Eventos de interfaz
 cropBgToggle.addEventListener('change', () => {
   if (cropBgToggle.checked) {
     cropThresholdGroup.style.opacity = '1';
@@ -47,6 +46,24 @@ cropBgToggle.addEventListener('change', () => {
 cropThresholdInput.addEventListener('input', () => {
   cropThresholdValue.textContent = cropThresholdInput.value;
   if (loadedImage && cropBgToggle.checked) processHalftone();
+});
+
+screenLpiInput.addEventListener('input', () => {
+  lpiVal.textContent = screenLpiInput.value;
+  if (loadedImage) processHalftone();
+});
+
+screenAngleInput.addEventListener('input', () => {
+  angleVal.textContent = screenAngleInput.value;
+  if (loadedImage) processHalftone();
+});
+
+methodSelect.addEventListener('change', () => {
+  if (loadedImage) processHalftone();
+});
+
+dotShapeSelect.addEventListener('change', () => {
+  if (loadedImage) processHalftone();
 });
 
 blackPointInput.addEventListener('input', () => {
@@ -81,16 +98,6 @@ imageInput.addEventListener('change', (e) => {
   reader.readAsDataURL(file);
 });
 
-dotSizeInput.addEventListener('input', () => {
-  dotValue.textContent = dotSizeInput.value;
-  if (loadedImage) processHalftone();
-});
-
-dotShapeSelect.addEventListener('change', () => {
-  if (loadedImage) processHalftone();
-});
-
-// Función de recorte automático
 function getCroppedImageCanvas(img, threshold) {
   const tempCanvas = document.createElement('canvas');
   const tempCtx = tempCanvas.getContext('2d');
@@ -159,14 +166,6 @@ function getCroppedImageCanvas(img, threshold) {
 }
 
 function processHalftone() {
-  const gridSpacing = parseInt(dotSizeInput.value, 10);
-  const shape = dotShapeSelect.value;
-  
-  // Valores de Niveles
-  const blackPoint = parseInt(blackPointInput.value, 10);
-  const whitePoint = parseInt(whitePointInput.value, 10);
-  const gamma = parseFloat(gammaInput.value);
-
   let sourceToProcess = loadedImage;
   if (cropBgToggle.checked) {
     const thresholdVal = parseInt(cropThresholdInput.value, 10);
@@ -182,62 +181,120 @@ function processHalftone() {
   const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
   const data = imageData.data;
 
+  const blackPoint = parseInt(blackPointInput.value, 10);
+  const whitePoint = parseInt(whitePointInput.value, 10);
+  const gamma = parseFloat(gammaInput.value);
+
+  // Pre-procesar niveles de brillo para cada píxel
+  const width = canvas.width;
+  const height = canvas.height;
+  const processedPixels = new Float32Array(width * height);
+
+  for (let i = 0; i < data.length; i += 4) {
+    const r = data[i];
+    const g = data[i+1];
+    const b = data[i+2];
+    const a = data[i+3];
+
+    if (a < 20) {
+      processedPixels[i / 4] = 255; // Fondo transparente o blanco
+      continue;
+    }
+
+    let luma = 0.299 * r + 0.587 * g + 0.114 * b;
+    if (whitePoint > blackPoint) {
+      luma = (luma - blackPoint) / (whitePoint - blackPoint) * 255;
+    }
+    luma = Math.max(0, Math.min(255, luma));
+
+    if (gamma !== 1) {
+      let normalized = luma / 255;
+      normalized = Math.pow(normalized, 1 / gamma);
+      luma = normalized * 255;
+    }
+
+    processedPixels[i / 4] = luma;
+  }
+
   ctx.fillStyle = bgColor;
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillRect(0, 0, width, height);
   ctx.fillStyle = dotColor;
 
-  for (let y = 0; y < canvas.height; y += gridSpacing) {
-    for (let x = 0; x < canvas.width; x += gridSpacing) {
-      const pixelX = Math.min(x + Math.floor(gridSpacing / 2), canvas.width - 1);
-      const pixelY = Math.min(y + Math.floor(gridSpacing / 2), canvas.height - 1);
-      const index = (pixelY * canvas.width + pixelX) * 4;
+  const method = methodSelect.value;
+  const lpi = parseInt(screenLpiInput.value, 10);
+  const cellSize = Math.max(2, Math.round(150 / lpi)); // Convertir LPI a tamaño de celda en píxeles aproximado
 
-      const r = data[index];
-      const g = data[index + 1];
-      const b = data[index + 2];
-      const a = data[index + 3];
+  if (method === 'diffusion') {
+    // Difusión de error Floyd-Steinberg
+    const imgOut = ctx.createImageData(width, height);
+    const outData = imgOut.data;
+    const buffer = new Float32Array(processedPixels);
 
-      if (a < 20) continue;
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        const idx = y * width + x;
+        const oldPixel = buffer[idx];
+        const newPixel = oldPixel < 128 ? 0 : 255;
+        const error = oldPixel - newPixel;
 
-      // 1. Luminancia base (0 a 255)
-      let luma = 0.299 * r + 0.587 * g + 0.114 * b;
+        const outIdx = idx * 4;
+        const val = dotColor === '#ffffff' ? (newPixel === 0 ? 255 : 0) : newPixel;
+        outData[outIdx] = dotColor === '#ffffff' ? 255 : val;
+        outData[outIdx+1] = dotColor === '#ffffff' ? 255 : val;
+        outData[outIdx+2] = dotColor === '#ffffff' ? 255 : val;
+        outData[outIdx+3] = 255;
 
-      // 2. Aplicar Niveles (Black Point, White Point y Gamma estilo Photoshop)
-      if (whitePoint > blackPoint) {
-        luma = (luma - blackPoint) / (whitePoint - blackPoint);
-      } else {
-        luma = 0;
+        if (x + 1 < width) buffer[idx + 1] += error * 7 / 16;
+        if (y + 1 < height) {
+          if (x > 0) buffer[idx + width - 1] += error * 3 / 16;
+          buffer[idx + width] += error * 5 / 16;
+          if (x + 1 < width) buffer[idx + width + 1] += error * 1 / 16;
+        }
       }
+    }
+    ctx.putImageData(imgOut, 0, 0);
 
-      luma = Math.max(0, Math.min(1, luma)); // Limitar entre 0 y 1
+  } else {
+    // Método Halftone clásico con soporte de ángulo y formas (round / line)
+    const angleRad = (parseFloat(screenAngleInput.value) * Math.PI) / 180;
+    const cos = Math.cos(angleRad);
+    const sin = Math.sin(angleRad);
+    const shape = dotShapeSelect.value;
 
-      if (gamma !== 1) {
-        luma = Math.pow(luma, 1 / gamma);
-      }
+    for (let y = 0; y < height; y += cellSize) {
+      for (let x = 0; x < width; x += cellSize) {
+        
+        // Coordenadas del centro de la celda
+        const cx = x + cellSize / 2;
+        const cy = y + cellSize / 2;
 
-      // 3. Calcular tamaño del punto basado en el brillo ajustado
-      const radius = (1 - luma) * (gridSpacing / 2);
+        const sampleX = Math.min(Math.max(Math.floor(cx), 0), width - 1);
+        const sampleY = Math.min(Math.max(Math.floor(cy), 0), height - 1);
+        const luma = processedPixels[sampleY * width + sampleX];
 
-      if (radius > 0.4) {
-        ctx.beginPath();
-        if (shape === 'circle') {
-          ctx.arc(x + gridSpacing / 2, y + gridSpacing / 2, radius, 0, Math.PI * 2);
-          ctx.fill();
-        } else if (shape === 'square') {
-          const size = radius * 2;
-          ctx.fillRect(
-            (x + gridSpacing / 2) - radius,
-            (y + gridSpacing / 2) - radius,
-            size,
-            size
-          );
+        const brightness = luma / 255;
+        const radius = (1 - brightness) * (cellSize / 2);
+
+        if (radius > 0.3) {
+          ctx.save();
+          ctx.translate(cx, cy);
+          ctx.rotate(angleRad);
+
+          ctx.beginPath();
+          if (shape === 'round') {
+            ctx.arc(0, 0, radius, 0, Math.PI * 2);
+            ctx.fill();
+          } else if (shape === 'line') {
+            const lineWidth = radius * 1.8;
+            ctx.fillRect(-cellSize / 2, -lineWidth / 2, cellSize, lineWidth);
+          }
+          ctx.restore();
         }
       }
     }
   }
 }
 
-// Funciones para mantener los DPI al descargar
 function setPngDpi(dataUrl, dpi = 300) {
   const ppm = Math.round(dpi / 0.0254);
   const base64 = dataUrl.split(',')[1];
@@ -297,7 +354,7 @@ downloadBtn.addEventListener('click', () => {
   const dpiDataUrl = setPngDpi(originalDataUrl, 300);
 
   const link = document.createElement('a');
-  link.download = 'semitono_ajustado_300dpi.png';
+  link.download = 'semitono_completo_300dpi.png';
   link.href = dpiDataUrl;
   link.click();
 });
