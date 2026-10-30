@@ -330,7 +330,7 @@ function processHalftone() {
       }
     }
   } else if (currentMethod === 'diffusion') {
-    // --- MODO 2: DIFUSIÓN A COLOR ---
+    // --- MODO 2: DIFUSIÓN A COLOR REAL ---
     const imgW = canvas.width;
     const imgH = canvas.height;
     
@@ -354,19 +354,16 @@ function processHalftone() {
           r = 255 - r; g = 255 - g; b = 255 - b;
         }
 
-        const noise = (Math.sin(x * 12.9898 + y * 78.233) * 43758.5453) % 1;
-        const threshold = noise * 40;
-
-        outPx[idx] = r > threshold ? r : 0;
-        outPx[idx + 1] = g > threshold ? g : 0;
-        outPx[idx + 2] = b > threshold ? b : 0;
+        outPx[idx] = r;
+        outPx[idx + 1] = g;
+        outPx[idx + 2] = b;
         outPx[idx + 3] = 255;
       }
     }
     ctx.putImageData(outputData, 0, 0);
 
   } else {
-    // --- MODO 3: TRAMADO ESTÁNDAR A COLOR (Puntos limpios con el color original) ---
+    // --- MODO 3: TRAMADO ESTÁNDAR A COLOR REAL ---
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     for (let y = 0; y < canvas.height; y += cellSize) {
       for (let x = 0; x < canvas.width; x += cellSize) {
@@ -390,16 +387,17 @@ function processHalftone() {
           r = 255 - r; g = 255 - g; b = 255 - b;
         }
 
+        // Usamos la luminancia correcta para calcular el tamaño del punto sin alterar el color
         let luma = 0.299 * r + 0.587 * g + 0.114 * b;
         let darkness = 1 - (luma / 255);
         let radius = darkness * (cellSize * 0.85);
 
-        if (radius > 0.4 && luma < 230) {
+        if (radius > 0.4 && luma < 240) {
           ctx.save();
           ctx.translate(cx, cy);
           ctx.rotate(angleRad);
-          // Aquí aplicamos el color real de la imagen en lugar de negro fijo
-          ctx.fillStyle = `rgb(${r},${g},${b})`;
+          // Mantiene los colores originales exactos de la imagen en cada punto
+          ctx.fillStyle = `rgb(${Math.round(r)},${Math.round(g)},${Math.round(b)})`;
 
           ctx.beginPath();
           if (shape === 'round') {
