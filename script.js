@@ -30,7 +30,7 @@ const zoomOutBtn = document.getElementById('zoomOutBtn');
 const zoomResetBtn = document.getElementById('zoomResetBtn');
 const zoomValDisplay = document.getElementById('zoomVal');
 
-let currentZoom = 1.0; // 1.0 = 100%
+let currentZoom = 1.0; 
 let loadedImage = null;
 let activeColorFilter = 'all';
 
@@ -277,6 +277,7 @@ function processHalftone() {
   const cellSize = Math.max(3, Math.round(180 / lpi));
 
   if (currentMethod === 'stochastic_fade') {
+    // --- MODO 1: DIFUMINADO ORGÁNICO ---
     for (let y = 0; y < canvas.height; y += cellSize) {
       for (let x = 0; x < canvas.width; x += cellSize) {
         const jitterX = (Math.random() - 0.5) * (cellSize * 0.7);
@@ -328,20 +329,28 @@ function processHalftone() {
       }
     }
   } else if (currentMethod === 'diffusion') {
+    // --- MODO 2: DIFUSIÓN A COLOR (Floyd-Steinberg preservando color) ---
     const imgW = canvas.width;
     const imgH = canvas.height;
-    const grayBuffer = new Float32Array(imgW * imgH);
+    
+    const rBuffer = new Float32Array(imgW * imgH);
+    const gBuffer = new Float32Array(imgW * imgH);
+    const bBuffer = new Float32Array(imgW * imgH);
 
     for (let i = 0; i < data.length; i += 4) {
       const idx = i / 4;
       if (data[i+3] < 20) {
-        grayBuffer[idx] = 255;
+        rBuffer[idx] = 255;
+        gBuffer[idx] = 255;
+        bBuffer[idx] = 255;
       } else {
         let r = adjustChannel(data[i], blackPoint, whitePoint, gamma);
         let g = adjustChannel(data[i+1], blackPoint, whitePoint, gamma);
         let b = adjustChannel(data[i+2], blackPoint, whitePoint, gamma);
         if (isInverted) { r = 255 - r; g = 255 - g; b = 255 - b; }
-        grayBuffer[idx] = 0.299 * r + 0.587 * g + 0.114 * b;
+        rBuffer[idx] = r;
+        gBuffer[idx] = g;
+        bBuffer[idx] = b;
       }
     }
 
@@ -351,33 +360,56 @@ function processHalftone() {
     for (let y = 0; y < imgH; y++) {
       for (let x = 0; x < imgW; x++) {
         const idx = y * imgW + x;
-        const oldPixel = grayBuffer[idx];
-        const newPixel = oldPixel < 128 ? 0 : 255;
-        const error = (oldPixel - newPixel) / 16;
-
         const outIdx = idx * 4;
-        const val = isInverted ? (newPixel === 0 ? 255 : 0) : newPixel;
-        
-        if (data[idx * 4 + 3] > 20 && !(data[idx * 4] < 15 && data[idx * 4 + 1] < 15 && data[idx * 4 + 2] < 15)) {
-          outPx[outIdx] = val;
-          outPx[outIdx + 1] = val;
-          outPx[outIdx + 2] = val;
-          outPx[outIdx + 3] = 255;
-        } else {
+
+        if (data[outIdx + 3] < 20 || (data[outIdx] < 15 && data[outIdx + 1] < 15 && data[outIdx + 2] < 15)) {
           outPx[outIdx + 3] = 0;
+          continue;
         }
 
-        if (x + 1 < imgW) grayBuffer[idx + 1] += error * 7;
+        const oldR = rBuffer[idx];
+        const newR = oldR < 128 ? 0 : 255;
+        const errR = (oldR - newR) / 16;
+
+        const oldG = gBuffer[idx];
+        const newG = oldG < 128 ? 0 : 255;
+        const errG = (oldG - newG) / 16;
+
+        const oldB = bBuffer[idx];
+        const newB = oldB < 128 ? 0 : 255;
+        const errB = (oldB - newB) / 16;
+
+        outPx[outIdx] = isInverted ? 255 - newR : newR;
+        outPx[outIdx + 1] = isInverted ? 255 - newG : newG;
+        outPx[outIdx + 2] = isInverted ? 255 - newB : newB;
+        outPx[outIdx + 3] = 255;
+
+        if (x + 1 < imgW) {
+          rBuffer[idx + 1] += errR * 7;
+          gBuffer[idx + 1] += errG * 7;
+          bBuffer[idx + 1] += errB * 7;
+        }
         if (y + 1 < imgH) {
-          if (x > 0) grayBuffer[(y + 1) * imgW + x - 1] += error * 3;
-          grayBuffer[(y + 1) * imgW + x] += error * 5;
-          if (x + 1 < imgW) grayBuffer[(y + 1) * imgW + x + 1] += error * 1;
+          if (x > 0) {
+            rBuffer[(y + 1) * imgW + x - 1] += errR * 3;
+            gBuffer[(y + 1) * imgW + x - 1] += errG * 3;
+            bBuffer[(y + 1) * imgW + x - 1] += errB * 3;
+          }
+          rBuffer[(y + 1) * imgW + x] += errR * 5;
+          gBuffer[(y + 1) * imgW + x] += errG * 5;
+          bBuffer[(y + 1) * imgW + x] += errB * 5;
+          if (x + 1 < imgW) {
+            rBuffer[(y + 1) * imgW + x + 1] += errR * 1;
+            gBuffer[(y + 1) * imgW + x + 1] += errG * 1;
+            bBuffer[(y + 1) * imgW + x + 1] += errB * 1;
+          }
         }
       }
     }
     ctx.putImageData(outputData, 0, 0);
 
   } else {
+    // --- MODO 3: TRAMADO ESTÁNDAR CLÁSICO ---
     for (let y = 0; y < canvas.height; y += cellSize) {
       for (let x = 0; x < canvas.width; x += cellSize) {
         const cx = x + cellSize / 2;
