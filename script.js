@@ -222,17 +222,29 @@ function processHalftone() {
   canvas.width = sourceToProcess.width;
   canvas.height = sourceToProcess.height;
 
-  // Limpiamos el canvas principal para garantizar fondo transparente
+  // 1. Limpiamos el canvas dejándolo transparente
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+  // 2. Dibujamos la imagen original para mantener colores y tonos claros SÓLIDOS y limpios
+  ctx.drawImage(sourceToProcess, 0, 0);
+
+  // 3. Eliminamos el fondo negro puro de la imagen base dejándolo transparente
+  const visibleData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  const vData = visibleData.data;
+  for (let i = 0; i < vData.length; i += 4) {
+    if (vData[i] < 20 && vData[i+1] < 20 && vData[i+2] < 20) {
+      vData[i + 3] = 0; 
+    }
+  }
+  ctx.putImageData(visibleData, 0, 0);
+
+  // Creamos un canvas temporal para leer los datos originales de la imagen
   const tempCanvas = document.createElement('canvas');
   tempCanvas.width = sourceToProcess.width;
   tempCanvas.height = sourceToProcess.height;
   const tempCtx = tempCanvas.getContext('2d', { willReadFrequently: true });
   tempCtx.drawImage(sourceToProcess, 0, 0);
-  
-  const imageData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
-  const data = imageData.data;
+  const data = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height).data;
 
   const blackPoint = parseInt(blackPointInput.value, 10);
   const whitePoint = parseInt(whitePointInput.value, 10);
@@ -242,9 +254,10 @@ function processHalftone() {
   const shape = dotShapeSelect.value;
   const lpi = parseInt(screenLpiInput.value, 10);
   
-  // Celda calculada por LPI para controlar la separación y el calibre
+  // Tamaño de celda controlado por LPI (calibre)
   const cellSize = Math.max(3, Math.round(180 / lpi));
 
+  // 4. Aplicamos el tramado de puntos negros EXCLUSIVAMENTE en las zonas de sombra/degradé
   for (let y = 0; y < canvas.height; y += cellSize) {
     for (let x = 0; x < canvas.width; x += cellSize) {
       const cx = x + cellSize / 2;
@@ -254,12 +267,10 @@ function processHalftone() {
       const sampleY = Math.min(Math.max(Math.floor(cy), 0), canvas.height - 1);
       const idx = (sampleY * canvas.width + sampleX) * 4;
 
-      // Si es transparente original, omitir
       if (data[idx + 3] < 20) continue;
 
       let r = data[idx], g = data[idx+1], b = data[idx+2];
 
-      // Eliminar fondo negro absoluto para que quede transparente
       if (r < 20 && g < 20 && b < 20) continue;
 
       r = adjustChannel(r, blackPoint, whitePoint, gamma);
@@ -270,21 +281,18 @@ function processHalftone() {
         r = 255 - r; g = 255 - g; b = 255 - b;
       }
 
-      // Calculamos la luminancia (oscuridad de la zona)
       let luma = 0.299 * r + 0.587 * g + 0.114 * b;
       
-      // En un semitono real, entre más oscuro (luma baja), mayor debe ser el punto negro.
-      // Si luma es cercana a 255 (blanco), el radio es 0 (no hay punto).
+      // El tramado solo actúa en sombras profundas y transiciones de degradé (luma baja)
       let darkness = 1 - (luma / 255);
-      let radius = darkness * (cellSize * 0.9);
+      let radius = darkness * (cellSize * 0.85);
 
-      // Solo dibujamos puntos negros definidos donde haya sombra/degradé real
-      if (radius > 0.5 && luma < 240) {
+      if (radius > 0.4 && luma < 110) {
         ctx.save();
         ctx.translate(cx, cy);
         ctx.rotate(angleRad);
         
-        ctx.fillStyle = isInverted ? '#ffffff' : '#000000'; // Puntos estrictamente negros (o blancos si se invierte)
+        ctx.fillStyle = isInverted ? '#ffffff' : '#000000';
 
         ctx.beginPath();
         if (shape === 'round') {
@@ -306,97 +314,5 @@ function setPngDpi(dataUrl, dpi = 300) {
   const binary = atob(base64);
   const bytes = new Uint8Array(binary.length);
   for (let i = 0; i < binary.length; i++) {
-    bytes[i] = binary.charCodeAt(i);
-  }
 
-  const insertIndex = 33;
-  const physChunk = new Uint8Array(21);
-  const view = new DataView(physChunk.buffer);
-  
-  view.setUint32(0, 9);
-  physChunk[4] = 112; 
-  physChunk[5] = 72;  
-  physChunk[6] = 89;  
-  physChunk[7] = 115; 
-  view.setUint32(8, ppm);
-  view.setUint32(12, ppm);
-  physChunk[16] = 1;
 
-  const crc = calculateCRC32(physChunk.subarray(4, 17));
-  view.setUint32(17, crc);
-
-  const finalBytes = new Uint8Array(bytes.length + physChunk.length);
-  finalBytes.set(bytes.subarray(0, insertIndex), 0);
-  finalBytes.set(physChunk, insertIndex);
-  finalBytes.set(bytes.subarray(insertIndex), insertIndex + physChunk.length);
-
-  let newBinary = '';
-  for (let i = 0; i < finalBytes.length; i++) {
-    newBinary += String.fromCharCode(finalBytes[i]);
-  }
-  return 'data:image/png;base64,' + btoa(newBinary);
-}
-
-function calculateCRC32(buf) {
-  let c = 0xffffffff;
-  for (let i = 0; i < buf.length; i++) {
-    c = crcTable[(c ^ buf[i]) & 0xff] ^ (c >>> 8);
-  }
-  return (c ^ 0xffffffff) >>> 0;
-}
-
-const crcTable = [];
-for (let n = 0; n < 256; n++) {
-  let c = n;
-  for (let k = 0; k < 8; k++) {
-    c = (c & 1) ? (0xedb88320 ^ (c >>> 1)) : (c >>> 1);
-  }
-  crcTable[n] = c;
-}
-
-downloadBtn.addEventListener('click', () => {
-  if (!loadedImage) return;
-
-  try {
-    downloadBtn.textContent = 'Generando archivo...';
-    downloadBtn.disabled = true;
-
-    setTimeout(() => {
-      const originalDataUrl = canvas.toDataURL('image/png', 1.0);
-      const dpiDataUrl = setPngDpi(originalDataUrl, 300);
-
-      const link = document.createElement('a');
-      link.download = 'semitonos_legacy_300dpi.png';
-      link.href = dpiDataUrl;
-      link.click();
-
-      downloadBtn.textContent = 'Descargar Imagen (300 DPI)';
-      downloadBtn.disabled = false;
-    }, 100);
-
-  } catch (error) {
-    console.error("Error al descargar:", error);
-    alert("La imagen es demasiado grande para la memoria del navegador.");
-    downloadBtn.textContent = 'Descargar Imagen (300 DPI)';
-    downloadBtn.disabled = false;
-  }
-});
-
-const darkGarmentPresetBtn = document.getElementById('darkGarmentPresetBtn');
-if (darkGarmentPresetBtn) {
-  darkGarmentPresetBtn.addEventListener('click', () => {
-    invertToggle.checked = !invertToggle.checked;
-    
-    if (invertToggle.checked) {
-      darkGarmentPresetBtn.style.background = 'linear-gradient(135deg, #cfd9df 0%, #90a4ae 100%)';
-      darkGarmentPresetBtn.style.color = '#0b0c10';
-      darkGarmentPresetBtn.style.borderColor = '#ffffff';
-    } else {
-      darkGarmentPresetBtn.style.background = '#0b0c10';
-      darkGarmentPresetBtn.style.color = '#ffffff';
-      darkGarmentPresetBtn.style.borderColor = '#90a4ae';
-    }
-
-    if (loadedImage) processHalftone();
-  });
-}
