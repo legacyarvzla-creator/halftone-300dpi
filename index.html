@@ -42,6 +42,34 @@
   <label for="cropThreshold">Umbral de recorte (0 - 255): <span id="cropThresholdValue">20</span></label>
   <input type="range" id="cropThreshold" min="0" max="255" value="20">
 </div>
+    <!-- Sección de Curva de Tono / Niveles -->
+<div class="control-group" style="grid-column: 1 / -1; border-top: 1px solid #eee; padding-top: 15px; margin-top: 5px;">
+  <strong style="margin-bottom: 8px; display: block; color: #2c3e50;">Curva de Tono (Niveles)</strong>
+</div>
+
+<div class="control-group">
+  <label for="blackPoint">Punto Negro: <span id="blackPointVal">0</span></label>
+  <div style="display: flex; gap: 8px; align-items: center;">
+    <input type="range" id="blackPoint" min="0" max="255" value="0" style="flex: 1;">
+    <button type="button" onclick="resetInput('blackPoint', 0)" style="padding: 2px 6px; cursor: pointer;">↺</button>
+  </div>
+</div>
+
+<div class="control-group">
+  <label for="whitePoint">Punto Blanco: <span id="whitePointVal">255</span></label>
+  <div style="display: flex; gap: 8px; align-items: center;">
+    <input type="range" id="whitePoint" min="0" max="255" value="255" style="flex: 1;">
+    <button type="button" onclick="resetInput('whitePoint', 255)" style="padding: 2px 6px; cursor: pointer;">↺</button>
+  </div>
+</div>
+
+<div class="control-group">
+  <label for="gammaInput">Gamma: <span id="gammaVal">1.00</span></label>
+  <div style="display: flex; gap: 8px; align-items: center;">
+    <input type="range" id="gammaInput" min="0.1" max="3.0" step="0.05" value="1.0" style="flex: 1;">
+    <button type="button" onclick="resetInput('gammaInput', 1.0)" style="padding: 2px 6px; cursor: pointer;">↺</button>
+  </div>
+</div>
 
     <button id="downloadBtn" class="btn" disabled>Descargar Imagen (300 DPI)</button>
 
