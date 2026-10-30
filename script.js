@@ -314,5 +314,99 @@ function setPngDpi(dataUrl, dpi = 300) {
   const binary = atob(base64);
   const bytes = new Uint8Array(binary.length);
   for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+
+  const insertIndex = 33;
+  const physChunk = new Uint8Array(21);
+  const view = new DataView(physChunk.buffer);
+  
+  view.setUint32(0, 9);
+  physChunk[4] = 112; 
+  physChunk[5] = 72;  
+  physChunk[6] = 89;  
+  physChunk[7] = 115; 
+  view.setUint32(8, ppm);
+  view.setUint32(12, ppm);
+  physChunk[16] = 1;
+
+  const crc = calculateCRC32(physChunk.subarray(4, 17));
+  view.setUint32(17, crc);
+
+  const finalBytes = new Uint8Array(bytes.length + physChunk.length);
+  finalBytes.set(bytes.subarray(0, insertIndex), 0);
+  finalBytes.set(physChunk, insertIndex);
+  finalBytes.set(bytes.subarray(insertIndex), insertIndex + physChunk.length);
+
+  let newBinary = '';
+  for (let i = 0; i < finalBytes.length; i++) {
+    newBinary += String.fromCharCode(finalBytes[i]);
+  }
+  return 'data:image/png;base64,' + btoa(newBinary);
+}
+
+function calculateCRC32(buf) {
+  let c = 0xffffffff;
+  for (let i = 0; i < buf.length; i++) {
+    c = crcTable[(c ^ buf[i]) & 0xff] ^ (c >>> 8);
+  }
+  return (c ^ 0xffffffff) >>> 0;
+}
+
+const crcTable = [];
+for (let n = 0; n < 256; n++) {
+  let c = n;
+  for (let k = 0; k < 8; k++) {
+    c = (c & 1) ? (0xedb88320 ^ (c >>> 1)) : (c >>> 1);
+  }
+  crcTable[n] = c;
+}
+
+downloadBtn.addEventListener('click', () => {
+  if (!loadedImage) return;
+
+  try {
+    downloadBtn.textContent = 'Generando archivo...';
+    downloadBtn.disabled = true;
+
+    setTimeout(() => {
+      const originalDataUrl = canvas.toDataURL('image/png', 1.0);
+      const dpiDataUrl = setPngDpi(originalDataUrl, 300);
+
+      const link = document.createElement('a');
+      link.download = 'semitonos_legacy_300dpi.png';
+      link.href = dpiDataUrl;
+      link.click();
+
+      downloadBtn.textContent = 'Descargar Imagen (300 DPI)';
+      downloadBtn.disabled = false;
+    }, 100);
+
+  } catch (error) {
+    console.error("Error al descargar:", error);
+    alert("La imagen es demasiado grande para la memoria del navegador.");
+    downloadBtn.textContent = 'Descargar Imagen (300 DPI)';
+    downloadBtn.disabled = false;
+  }
+});
+
+const darkGarmentPresetBtn = document.getElementById('darkGarmentPresetBtn');
+if (darkGarmentPresetBtn) {
+  darkGarmentPresetBtn.addEventListener('click', () => {
+    invertToggle.checked = !invertToggle.checked;
+    
+    if (invertToggle.checked) {
+      darkGarmentPresetBtn.style.background = 'linear-gradient(135deg, #cfd9df 0%, #90a4ae 100%)';
+      darkGarmentPresetBtn.style.color = '#0b0c10';
+      darkGarmentPresetBtn.style.borderColor = '#ffffff';
+    } else {
+      darkGarmentPresetBtn.style.background = '#0b0c10';
+      darkGarmentPresetBtn.style.color = '#ffffff';
+      darkGarmentPresetBtn.style.borderColor = '#90a4ae';
+    }
+
+    if (loadedImage) processHalftone();
+  });
+}
 
 
