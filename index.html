@@ -9,8 +9,12 @@
 <body>
 
   <div class="container">
-    <h1>Semitonos Legacy</h1>
-    <p style="text-align: center; color: #666; margin-top: -10px; margin-bottom: 20px;">Conversor profesional de semitonos y difusión a 300 DPI para DTF y Serigrafía</p>
+    <!-- Logo y Título Legacy -->
+    <div class="brand-header">
+      <img src="logo.jpg" alt="Legacy Logo" class="logo-img">
+      <h1>SEMITONOS LEGACY</h1>
+      <p class="subtitle">Conversor profesional de semitonos y difusión a 300 DPI para DTF y Serigrafía</p>
+    </div>
     
     <div class="controls">
       <!-- Seleccionar Imagen -->
@@ -37,21 +41,21 @@
         </select>
       </div>
 
-     <!-- Frecuencia de Pantalla (LPI) (5 a 100) -->
+      <!-- Frecuencia de Pantalla (LPI) -->
       <div class="control-group">
         <label for="screenLpi">Frecuencia de Pantalla (LPI): <span id="lpiVal">30</span></label>
         <div style="display: flex; gap: 8px; align-items: center;">
           <input type="range" id="screenLpi" min="5" max="100" value="30" style="flex: 1;">
-          <button type="button" onclick="resetInput('screenLpi', 30)" style="padding: 2px 6px; cursor: pointer;">↺</button>
+          <button type="button" onclick="resetInput('screenLpi', 30)" class="reset-btn">↺</button>
         </div>
       </div>
 
-      <!-- Ángulo de Pantalla (0 a 90 con decimales permitidos) -->
+      <!-- Ángulo de Pantalla -->
       <div class="control-group">
         <label for="screenAngle">Ángulo de Pantalla (°): <span id="angleVal">22.5</span></label>
         <div style="display: flex; gap: 8px; align-items: center;">
           <input type="range" id="screenAngle" min="0" max="90" step="0.5" value="22.5" style="flex: 1;">
-          <button type="button" onclick="resetInput('screenAngle', 22.5)" style="padding: 2px 6px; cursor: pointer;">↺</button>
+          <button type="button" onclick="resetInput('screenAngle', 22.5)" class="reset-btn">↺</button>
         </div>
       </div>
 
@@ -64,58 +68,72 @@
         </select>
       </div>
 
+      <!-- Selector de Canales / Colores a Tramar -->
+      <div class="control-group" style="grid-column: 1 / -1; border-top: 1px solid #333; padding-top: 15px; margin-top: 5px;">
+        <strong style="margin-bottom: 8px; display: block; color: #cfd9df;">Aislar / Filtrar Canales de Color</strong>
+        <div style="display: flex; gap: 8px; flex-wrap: wrap;" id="colorFilterGroup">
+          <button type="button" class="color-filter-btn active" data-color="all">Todos</button>
+          <button type="button" class="color-filter-btn" data-color="red">Rojo</button>
+          <button type="button" class="color-filter-btn" data-color="green">Verde</button>
+          <button type="button" class="color-filter-btn" data-color="blue">Azul</button>
+          <button type="button" class="color-filter-btn" data-color="yellow">Amarillo</button>
+          <button type="button" class="color-filter-btn" data-color="pink">Rosa</button>
+          <button type="button" class="color-filter-btn" data-color="white">Blanco</button>
+        </div>
+      </div>
+
       <!-- Modo de Salida: Invertir para prenda oscura -->
-      <div class="control-group" style="grid-column: 1 / -1; border-top: 1px solid #eee; padding-top: 10px; margin-top: 5px;">
-        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+      <div class="control-group" style="grid-column: 1 / -1; border-top: 1px solid #333; padding-top: 10px; margin-top: 5px;">
+        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; color: #e0e0e0;">
           <input type="checkbox" id="invertToggle"> 
           <strong>Invertir para prenda oscura (Invert for Dark Garment)</strong>
         </label>
-        <small style="color: #666; margin-top: 2px; display: block;">Invierte los tonos para imprimir con tinta clara sobre fondo oscuro.</small>
+        <small style="color: #888; margin-top: 2px; display: block;">Invierte los tonos para imprimir con tinta clara sobre fondo oscuro.</small>
       </div>
 
       <!-- Recorte Automático de Fondo Negro -->
-      <div class="control-group" style="grid-column: 1 / -1; border-top: 1px solid #eee; padding-top: 10px; margin-top: 5px;">
-        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+      <div class="control-group" style="grid-column: 1 / -1; border-top: 1px solid #333; padding-top: 10px; margin-top: 5px;">
+        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; color: #e0e0e0;">
           <input type="checkbox" id="cropBgToggle"> 
           <strong>Recortar fondo negro automáticamente</strong>
         </label>
       </div>
 
-      <!-- Umbral de Recorte (0 a 255) -->
+      <!-- Umbral de Recorte -->
       <div class="control-group" id="cropThresholdGroup" style="opacity: 0.5; pointer-events: none;">
         <label for="cropThreshold">Umbral de Recorte (0 - 255): <span id="cropThresholdValue">20</span></label>
         <input type="range" id="cropThreshold" min="0" max="255" value="20">
       </div>
 
       <!-- Curva de Tono / Niveles -->
-      <div class="control-group" style="grid-column: 1 / -1; border-top: 1px solid #eee; padding-top: 15px; margin-top: 5px;">
-        <strong style="margin-bottom: 8px; display: block; color: #2c3e50;">Curva de Tono (Niveles)</strong>
+      <div class="control-group" style="grid-column: 1 / -1; border-top: 1px solid #333; padding-top: 15px; margin-top: 5px;">
+        <strong style="margin-bottom: 8px; display: block; color: #cfd9df;">Curva de Tono (Niveles)</strong>
       </div>
 
-      <!-- Punto Negro (0 a 255) -->
+      <!-- Punto Negro -->
       <div class="control-group">
         <label for="blackPoint">Punto Negro (0 - 255): <span id="blackPointVal">0</span></label>
         <div style="display: flex; gap: 8px; align-items: center;">
           <input type="range" id="blackPoint" min="0" max="255" value="0" style="flex: 1;">
-          <button type="button" onclick="resetInput('blackPoint', 0)" style="padding: 2px 6px; cursor: pointer;">↺</button>
+          <button type="button" onclick="resetInput('blackPoint', 0)" class="reset-btn">↺</button>
         </div>
       </div>
 
-      <!-- Punto Blanco (0 a 255) -->
+      <!-- Punto Blanco -->
       <div class="control-group">
         <label for="whitePoint">Punto Blanco (0 - 255): <span id="whitePointVal">255</span></label>
         <div style="display: flex; gap: 8px; align-items: center;">
           <input type="range" id="whitePoint" min="0" max="255" value="255" style="flex: 1;">
-          <button type="button" onclick="resetInput('whitePoint', 255)" style="padding: 2px 6px; cursor: pointer;">↺</button>
+          <button type="button" onclick="resetInput('whitePoint', 255)" class="reset-btn">↺</button>
         </div>
       </div>
 
-      <!-- Gamma (0.1 a 3) -->
+      <!-- Gamma -->
       <div class="control-group">
         <label for="gammaInput">Gamma (0.1 - 3.0): <span id="gammaVal">1.00</span></label>
         <div style="display: flex; gap: 8px; align-items: center;">
           <input type="range" id="gammaInput" min="0.1" max="3.0" step="0.05" value="1.0" style="flex: 1;">
-          <button type="button" onclick="resetInput('gammaInput', 1.0)" style="padding: 2px 6px; cursor: pointer;">↺</button>
+          <button type="button" onclick="resetInput('gammaInput', 1.0)" class="reset-btn">↺</button>
         </div>
       </div>
     </div>
