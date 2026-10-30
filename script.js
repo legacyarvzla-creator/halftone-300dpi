@@ -24,8 +24,46 @@ const gammaVal = document.getElementById('gammaVal');
 const canvas = document.getElementById('canvas');
 const ctx = canvas ? canvas.getContext('2d', { willReadFrequently: true }) : null;
 
+// Controles de Zoom
+const zoomInBtn = document.getElementById('zoomInBtn');
+const zoomOutBtn = document.getElementById('zoomOutBtn');
+const zoomResetBtn = document.getElementById('zoomResetBtn');
+const zoomValDisplay = document.getElementById('zoomVal');
+
+let currentZoom = 1.0; // 1.0 = 100%
 let loadedImage = null;
 let activeColorFilter = 'all';
+
+function updateZoomDisplay() {
+  if (canvas) {
+    canvas.style.transform = `scale(${currentZoom})`;
+    canvas.style.transformOrigin = 'top left';
+  }
+  if (zoomValDisplay) {
+    zoomValDisplay.textContent = Math.round(currentZoom * 100) + '%';
+  }
+}
+
+if (zoomInBtn) {
+  zoomInBtn.addEventListener('click', () => {
+    currentZoom = Math.min(5.0, currentZoom + 0.25);
+    updateZoomDisplay();
+  });
+}
+
+if (zoomOutBtn) {
+  zoomOutBtn.addEventListener('click', () => {
+    currentZoom = Math.max(0.25, currentZoom - 0.25);
+    updateZoomDisplay();
+  });
+}
+
+if (zoomResetBtn) {
+  zoomResetBtn.addEventListener('click', () => {
+    currentZoom = 1.0;
+    updateZoomDisplay();
+  });
+}
 
 window.resetInput = function(id, defaultValue) {
   const el = document.getElementById(id);
@@ -101,6 +139,8 @@ if (imageInput) {
           ctx.drawImage(img, 0, 0);
         }
 
+        currentZoom = 1.0;
+        updateZoomDisplay();
         processHalftone();
         if (downloadBtn) downloadBtn.disabled = false;
       };
