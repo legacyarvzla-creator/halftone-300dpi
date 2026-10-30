@@ -222,18 +222,25 @@ function processHalftone() {
   canvas.width = sourceToProcess.width;
   canvas.height = sourceToProcess.height;
 
+  // 1. Limpiamos el canvas principal
   ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // 2. Dibujamos la imagen base limpia y sólida
   ctx.drawImage(sourceToProcess, 0, 0);
 
-  const visibleData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-  const vData = visibleData.data;
-  for (let i = 0; i < vData.length; i += 4) {
-    if (vData[i] < 20 && vData[i+1] < 20 && vData[i+2] < 20) {
-      vData[i + 3] = 0; 
+  // 3. Eliminación limpia de fondo negro (cero semitransparencias: alfa 0 o alfa 255)
+  const imgDataLayer = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  const pxData = imgDataLayer.data;
+  for (let i = 0; i < pxData.length; i += 4) {
+    if (pxData[i] < 20 && pxData[i+1] < 20 && pxData[i+2] < 20) {
+      pxData[i + 3] = 0; // Transparente absoluto
+    } else if (pxData[i + 3] > 20) {
+      pxData[i + 3] = 255; // Opaco absoluto para evitar bordes difusos
     }
   }
-  ctx.putImageData(visibleData, 0, 0);
+  ctx.putImageData(imgDataLayer, 0, 0);
 
+  // 4. Canvas temporal para lectura de niveles de luz
   const tempCanvas = document.createElement('canvas');
   tempCanvas.width = sourceToProcess.width;
   tempCanvas.height = sourceToProcess.height;
@@ -251,6 +258,7 @@ function processHalftone() {
   
   const cellSize = Math.max(3, Math.round(180 / lpi));
 
+  // 5. Aplicación de tramado fluido y orgánico
   for (let y = 0; y < canvas.height; y += cellSize) {
     for (let x = 0; x < canvas.width; x += cellSize) {
       const cx = x + cellSize / 2;
@@ -277,9 +285,10 @@ function processHalftone() {
       let luma = 0.299 * r + 0.587 * g + 0.114 * b;
       
       let darkness = 1 - (luma / 255);
-      let radius = darkness * (cellSize * 0.85);
+      let radius = darkness * (cellSize * 0.75);
 
-      if (radius > 0.4 && luma < 110) {
+      // Rango calibrado para preservar colores vivos sin oscurecer artificialmente
+      if (radius > 0.4 && luma < 95) {
         ctx.save();
         ctx.translate(cx, cy);
         ctx.rotate(angleRad);
@@ -291,7 +300,7 @@ function processHalftone() {
           ctx.arc(0, 0, radius, 0, Math.PI * 2);
           ctx.fill();
         } else if (shape === 'line') {
-          const lineWidth = radius * 1.5;
+          const lineWidth = radius * 1.4;
           ctx.fillRect(-cellSize / 2, -lineWidth / 2, cellSize, lineWidth);
         }
         ctx.restore();
@@ -392,11 +401,4 @@ if (darkGarmentPresetBtn) {
       darkGarmentPresetBtn.style.color = '#0b0c10';
       darkGarmentPresetBtn.style.borderColor = '#ffffff';
     } else {
-      darkGarmentPresetBtn.style.background = '#0b0c10';
-      darkGarmentPresetBtn.style.color = '#ffffff';
-      darkGarmentPresetBtn.style.borderColor = '#90a4ae';
-    }
-
-    if (loadedImage) processHalftone();
-  });
-}
+      darkGarmentPresetBtn.style
