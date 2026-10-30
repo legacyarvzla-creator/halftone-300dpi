@@ -25,12 +25,30 @@ const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d', { willReadFrequently: true });
 
 let loadedImage = null;
+let activeColorFilter = 'all'; // Filtro de color por defecto
 
 window.resetInput = function(id, defaultValue) {
   const el = document.getElementById(id);
   el.value = defaultValue;
   el.dispatchEvent(new Event('input'));
 };
+
+// Manejo de los botones de filtro de color
+document.querySelectorAll('.color-filter-btn').forEach(btn => {
+  btn.addEventListener('click', (e) => {
+    document.querySelectorAll('.color-filter-btn').forEach(b => {
+      b.style.background = '#f8f9fa';
+      b.style.color = '#000';
+      b.classList.remove('active');
+    });
+    e.target.style.background = '#2c3e50';
+    e.target.style.color = '#fff';
+    e.target.classList.add('active');
+
+    activeColorFilter = e.target.getAttribute('data-color');
+    if (loadedImage) processHalftone();
+  });
+});
 
 cropBgToggle.addEventListener('change', () => {
   if (cropBgToggle.checked) {
@@ -98,32 +116,16 @@ imageInput.addEventListener('change', (e) => {
     const img = new Image();
     img.onload = () => {
       loadedImage = img;
-      
-      // Asignar dimensiones iniciales al canvas para forzar la previsualización
       canvas.width = img.width;
       canvas.height = img.height;
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.drawImage(img, 0, 0);
 
-      // Procesar el semitono/difusión automáticamente
       processHalftone();
       downloadBtn.disabled = false;
     };
     img.onerror = () => {
-      alert("Error al cargar la imagen. Asegúrate de que sea un archivo válido.");
-    };
-    img.src = event.target.result;
-  };
-  reader.readAsDataURL(file);
-});
-
-  const reader = new FileReader();
-  reader.onload = (event) => {
-    const img = new Image();
-    img.onload = () => {
-      loadedImage = img;
-      processHalftone();
-      downloadBtn.disabled = false;
+      alert("Error al cargar la imagen.");
     };
     img.src = event.target.result;
   };
@@ -211,6 +213,30 @@ function adjustChannel(val, blackPoint, whitePoint, gamma) {
   return v;
 }
 
+// Función para evaluar si un píxel coincide con el filtro de color seleccionado
+function filterColorPixel(r, g, b, filter) {
+  if (filter === 'all') return { r, g, b };
+
+  let keep = false;
+  // Detección aproximada basada en dominancia de canales RGB
+  if (filter === 'red') {
+    keep = (r > g + 40 && r > b + 40);
+  } else if (filter === 'green') {
+    keep = (g > r + 40 && g > b + 40);
+  } else if (filter === 'blue') {
+    keep = (b > r + 40 && b > g + 40);
+  } else if (filter === 'yellow') {
+    keep = (r > 150 && g > 150 && b < 100);
+  } else if (filter === 'pink') {
+    keep = (r > 150 && b > 120 && g < 130);
+  } else if (filter === 'white') {
+    keep = (r > 200 && g > 200 && b > 200);
+  }
+
+  // Si no coincide con el color seleccionado, se neutraliza (blanco/sin tinta)
+  return keep ? { r, g, b } : { r: 255, g: 255, b: 255 };
+}
+
 function processHalftone() {
   let sourceToProcess = loadedImage;
   if (cropBgToggle.checked) {
@@ -256,9 +282,14 @@ function processHalftone() {
         continue;
       }
 
-      let r = adjustChannel(data[i], blackPoint, whitePoint, gamma);
-      let g = adjustChannel(data[i+1], blackPoint, whitePoint, gamma);
-      let b = adjustChannel(data[i+2], blackPoint, whitePoint, gamma);
+      let r = data[i], g = data[i+1], b = data[i+2];
+      
+      // Aplicar filtro de color seleccionado
+      const filtered = filterColorPixel(r, g, b, activeColorFilter);
+
+      r = adjustChannel(filtered.r, blackPoint, whitePoint, gamma);
+      g = adjustChannel(filtered.g, blackPoint, whitePoint, gamma);
+      b = adjustChannel(filtered.b, blackPoint, whitePoint, gamma);
 
       if (isInverted) {
         r = 255 - r;
@@ -352,9 +383,12 @@ function processHalftone() {
 
         if (data[idx + 3] < 20) continue;
 
-        let r = adjustChannel(data[idx], blackPoint, whitePoint, gamma);
-        let g = adjustChannel(data[idx+1], blackPoint, whitePoint, gamma);
-        let b = adjustChannel(data[idx+2], blackPoint, whitePoint, gamma);
+        let r = data[idx], g = data[idx+1], b = data[idx+2];
+        const filtered = filterColorPixel(r, g, b, activeColorFilter);
+
+        r = adjustChannel(filtered.r, blackPoint, whitePoint, gamma);
+        g = adjustChannel(filtered.g, blackPoint, whitePoint, gamma);
+        b = adjustChannel(filtered.b, blackPoint, whitePoint, gamma);
 
         if (isInverted) {
           r = 255 - r;
