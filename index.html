@@ -30,6 +30,18 @@
         </select>
       </div>
     </div>
+    <!-- Opción de Recorte Automático de Fondo Negro -->
+<div class="control-group" style="grid-column: 1 / -1; border-top: 1px solid #eee; padding-top: 10px; margin-top: 5px;">
+  <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+    <input type="checkbox" id="cropBgToggle"> 
+    <strong>Recortar fondo negro automáticamente</strong>
+  </label>
+</div>
+
+<div class="control-group" id="cropThresholdGroup" style="opacity: 0.5; pointer-events: none;">
+  <label for="cropThreshold">Umbral de recorte (0 - 255): <span id="cropThresholdValue">20</span></label>
+  <input type="range" id="cropThreshold" min="0" max="255" value="20">
+</div>
 
     <button id="downloadBtn" class="btn" disabled>Descargar Imagen (300 DPI)</button>
 
