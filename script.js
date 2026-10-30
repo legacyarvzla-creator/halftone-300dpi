@@ -254,7 +254,9 @@ function processHalftone() {
   const angleRad = (parseFloat(screenAngleInput.value) * Math.PI) / 180;
   const shape = dotShapeSelect.value;
   const lpi = parseInt(screenLpiInput.value, 10);
-  const cellSize = Math.max(2, Math.round(150 / lpi));
+  
+  // Tamaño de celda optimizado para puntos más separados y delicados
+  const cellSize = Math.max(4, Math.round(200 / lpi));
 
   for (let y = 0; y < canvas.height; y += cellSize) {
     for (let x = 0; x < canvas.width; x += cellSize) {
@@ -269,8 +271,8 @@ function processHalftone() {
 
       let r = data[idx], g = data[idx+1], b = data[idx+2];
 
-      // Si es negro puro o fondo oscuro, se omite (queda transparente)
-      if (r < 25 && g < 25 && b < 25) continue;
+      // Eliminar fondo negro puro para mantener transparencia
+      if (r < 20 && g < 20 && b < 20) continue;
 
       if (activeColorFilter !== 'all') {
         if (!isTargetColor(r, g, b, activeColorFilter)) continue;
@@ -286,12 +288,12 @@ function processHalftone() {
 
       let luma = 0.299 * r + 0.587 * g + 0.114 * b;
 
-      // Aplicar tramado SOLO en zonas de degradé (transiciones)
-      if (luma > 25 && luma < 230) {
+      // Rango de degradé sutil: aplica puntos delicados solo en transiciones suaves
+      if (luma > 30 && luma < 225) {
         let brightness = luma / 255;
-        let radius = (1 - brightness) * (cellSize / 2);
+        let radius = (1 - brightness) * (cellSize / 2.2);
 
-        if (radius > 0.3) {
+        if (radius > 0.4) {
           ctx.save();
           ctx.translate(cx, cy);
           ctx.rotate(angleRad);
@@ -301,7 +303,7 @@ function processHalftone() {
             ctx.arc(0, 0, radius, 0, Math.PI * 2);
             ctx.fill();
           } else if (shape === 'line') {
-            const lineWidth = radius * 1.8;
+            const lineWidth = radius * 1.6;
             ctx.fillRect(-cellSize / 2, -lineWidth / 2, cellSize, lineWidth);
           }
           ctx.restore();
@@ -411,4 +413,3 @@ if (darkGarmentPresetBtn) {
     if (loadedImage) processHalftone();
   });
 }
-
