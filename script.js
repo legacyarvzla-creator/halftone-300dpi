@@ -98,6 +98,30 @@ imageInput.addEventListener('change', (e) => {
     const img = new Image();
     img.onload = () => {
       loadedImage = img;
+      
+      // Asignar dimensiones iniciales al canvas para forzar la previsualización
+      canvas.width = img.width;
+      canvas.height = img.height;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, 0, 0);
+
+      // Procesar el semitono/difusión automáticamente
+      processHalftone();
+      downloadBtn.disabled = false;
+    };
+    img.onerror = () => {
+      alert("Error al cargar la imagen. Asegúrate de que sea un archivo válido.");
+    };
+    img.src = event.target.result;
+  };
+  reader.readAsDataURL(file);
+});
+
+  const reader = new FileReader();
+  reader.onload = (event) => {
+    const img = new Image();
+    img.onload = () => {
+      loadedImage = img;
       processHalftone();
       downloadBtn.disabled = false;
     };
