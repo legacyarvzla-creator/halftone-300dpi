@@ -234,9 +234,10 @@ function processHalftone() {
   canvas.width = sourceToProcess.width;
   canvas.height = sourceToProcess.height;
 
-  // Limpiamos el canvas dejándolo 100% transparente al inicio
+  // Limpiamos el canvas principal para dejar el fondo transparente
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+  // Canvas temporal para leer los pixeles originales limpios y sin alteración de color
   const tempCanvas = document.createElement('canvas');
   tempCanvas.width = sourceToProcess.width;
   tempCanvas.height = sourceToProcess.height;
@@ -255,8 +256,8 @@ function processHalftone() {
   const shape = dotShapeSelect.value;
   const lpi = parseInt(screenLpiInput.value, 10);
   
-  // Tamaño de celda optimizado para puntos más separados y delicados
-  const cellSize = Math.max(4, Math.round(200 / lpi));
+  // Tamaño de celda amplio para obtener puntos separados y delicados
+  const cellSize = Math.max(4, Math.round(220 / lpi));
 
   for (let y = 0; y < canvas.height; y += cellSize) {
     for (let x = 0; x < canvas.width; x += cellSize) {
@@ -271,12 +272,15 @@ function processHalftone() {
 
       let r = data[idx], g = data[idx+1], b = data[idx+2];
 
-      // Eliminar fondo negro puro para mantener transparencia
-      if (r < 20 && g < 20 && b < 20) continue;
+      // Eliminar fondo negro puro para garantizar transparencia absoluta
+      if (r < 25 && g < 25 && b < 25) continue;
 
       if (activeColorFilter !== 'all') {
         if (!isTargetColor(r, g, b, activeColorFilter)) continue;
       }
+
+      // Guardamos el color original exacto de la muestra antes de cualquier ajuste de niveles
+      const origR = r, origG = g, origB = b;
 
       r = adjustChannel(r, blackPoint, whitePoint, gamma);
       g = adjustChannel(g, blackPoint, whitePoint, gamma);
@@ -288,8 +292,8 @@ function processHalftone() {
 
       let luma = 0.299 * r + 0.587 * g + 0.114 * b;
 
-      // Rango de degradé sutil: aplica puntos delicados solo en transiciones suaves
-      if (luma > 30 && luma < 225) {
+      // Aplicar tramado sutil solo en los degradés y sombras de transición
+      if (luma > 25 && luma < 230) {
         let brightness = luma / 255;
         let radius = (1 - brightness) * (cellSize / 2.2);
 
@@ -297,7 +301,14 @@ function processHalftone() {
           ctx.save();
           ctx.translate(cx, cy);
           ctx.rotate(angleRad);
-          ctx.fillStyle = isColorMode ? `rgb(${Math.round(r)}, ${Math.round(g)}, ${Math.round(b)})` : (isInverted ? '#ffffff' : '#000000');
+          
+          // Mantiene los colores originales reales de la imagen sin alterar tonos
+          if (isColorMode) {
+            ctx.fillStyle = `rgb(${origR}, ${origG}, ${origB})`;
+          } else {
+            ctx.fillStyle = isInverted ? '#ffffff' : '#000000';
+          }
+
           ctx.beginPath();
           if (shape === 'round') {
             ctx.arc(0, 0, radius, 0, Math.PI * 2);
