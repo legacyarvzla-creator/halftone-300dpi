@@ -1,4 +1,5 @@
 const imageInput = document.getElementById('imageInput');
+const colorModeSelect = document.getElementById('colorModeSelect');
 const methodSelect = document.getElementById('methodSelect');
 const screenLpiInput = document.getElementById('screenLpi');
 const lpiVal = document.getElementById('lpiVal');
@@ -45,6 +46,10 @@ cropBgToggle.addEventListener('change', () => {
 cropThresholdInput.addEventListener('input', () => {
   cropThresholdValue.textContent = cropThresholdInput.value;
   if (loadedImage && cropBgToggle.checked) processHalftone();
+});
+
+colorModeSelect.addEventListener('change', () => {
+  if (loadedImage) processHalftone();
 });
 
 screenLpiInput.addEventListener('input', () => {
@@ -168,6 +173,20 @@ function getCroppedImageCanvas(img, threshold) {
   return croppedCanvas;
 }
 
+function adjustChannel(val, blackPoint, whitePoint, gamma) {
+  let v = val;
+  if (whitePoint > blackPoint) {
+    v = ((v - blackPoint) / (whitePoint - blackPoint)) * 255;
+  }
+  v = Math.max(0, Math.min(255, v));
+  if (gamma !== 1) {
+    let norm = v / 255;
+    norm = Math.pow(norm, 1 / gamma);
+    v = norm * 255;
+  }
+  return v;
+}
+
 function processHalftone() {
   let sourceToProcess = loadedImage;
   if (cropBgToggle.checked) {
@@ -188,90 +207,111 @@ function processHalftone() {
   const whitePoint = parseInt(whitePointInput.value, 10);
   const gamma = parseFloat(gammaInput.value);
   const isInverted = invertToggle.checked;
+  const isColorMode = colorModeSelect.value === 'color';
 
   const width = canvas.width;
   const height = canvas.height;
-  const processedPixels = new Float32Array(width * height);
 
-  for (let i = 0; i < data.length; i += 4) {
-    const r = data[i];
-    const g = data[i+1];
-    const b = data[i+2];
-    const a = data[i+3];
-
-    if (a < 20) {
-      processedPixels[i / 4] = 255;
-      continue;
-    }
-
-    let luma = 0.299 * r + 0.587 * g + 0.114 * b;
-    if (whitePoint > blackPoint) {
-      luma = (luma - blackPoint) / (whitePoint - blackPoint) * 255;
-    }
-    luma = Math.max(0, Math.min(255, luma));
-
-    if (gamma !== 1) {
-      let normalized = luma / 255;
-      normalized = Math.pow(normalized, 1 / gamma);
-      luma = normalized * 255;
-    }
-
-    // Si está marcado para prenda oscura, invertimos los valores tonales
-    if (isInverted) {
-      luma = 255 - luma;
-    }
-
-    processedPixels[i / 4] = luma;
-  }
-
-  // Fondo y color de puntos adaptados si se invierte
+  // Fondo según inversión
   ctx.fillStyle = isInverted ? '#000000' : '#ffffff';
   ctx.fillRect(0, 0, width, height);
-  ctx.fillStyle = isInverted ? '#ffffff' : '#000000';
 
   const method = methodSelect.value;
   const lpi = parseInt(screenLpiInput.value, 10);
   const cellSize = Math.max(2, Math.round(150 / lpi));
 
   if (method === 'diffusion') {
+    // Difusión Floyd-Steinberg a Color o Monocromo
     const imgOut = ctx.createImageData(width, height);
     const outData = imgOut.data;
-    const buffer = new Float32Array(processedPixels);
+
+    const bufferR = new Float32Array(width * height);
+    const bufferG = new Float32Array(width * height);
+    const bufferB = new Float32Array(width * height);
+
+    for (let i = 0; i < data.length; i += 4) {
+      let r = adjustChannel(data[i], blackPoint, whitePoint, gamma);
+      let g = adjustChannel(data[i+1], blackPoint, whitePoint, gamma);
+      let b = adjustChannel(data[i+2], blackPoint, whitePoint, gamma);
+
+      if (isInverted) {
+        r = 255 - r;
+        g = 255 - g;
+        b = 255 - b;
+      }
+
+      bufferR[i / 4] = r;
+      bufferG[i / 4] = g;
+      bufferB[i / 4] = b;
+    }
 
     for (let y = 0; y < height; y++) {
       for (let x = 0; x < width; x++) {
         const idx = y * width + x;
-        const oldPixel = buffer[idx];
-        const newPixel = oldPixel < 128 ? 0 : 255;
-        const error = oldPixel - newPixel;
-
         const outIdx = idx * 4;
-        let val = newPixel;
-        
-        if (isInverted) {
-          val = newPixel === 0 ? 255 : 0;
-          outData[outIdx] = val;
-          outData[outIdx+1] = val;
-          outData[outIdx+2] = val;
-          outData[outIdx+3] = val === 0 ? 0 : 255;
+
+        if (data[outIdx + 3] < 20) {
+          outData[outIdx + 3] = 0;
+          continue;
+        }
+
+        if (isColorMode) {
+          const oldR = bufferR[idx], oldG = bufferG[idx], oldB = bufferB[idx];
+          const newR = oldR < 128 ? 0 : 255;
+          const newG = oldG < 128 ? 0 : 255;
+          const newB = oldB < 128 ? 0 : 255;
+
+          outData[outIdx] = newR;
+          outData[outIdx+1] = newG;
+          outData[outIdx+2] = newB;
+          outData[outIdx+3] = 255;
+
+          const errR = oldR - newR, errG = oldG - newG, errB = oldB - newB;
+          if (x + 1 < width) {
+            bufferR[idx + 1] += errR * 7 / 16;
+            bufferG[idx + 1] += errG * 7 / 16;
+            bufferB[idx + 1] += errB * 7 / 16;
+          }
+          if (y + 1 < height) {
+            if (x > 0) {
+              bufferR[idx + width - 1] += errR * 3 / 16;
+              bufferG[idx + width - 1] += errG * 3 / 16;
+              bufferB[idx + width - 1] += errB * 3 / 16;
+            }
+            bufferR[idx + width] += errR * 5 / 16;
+            bufferG[idx + width] += errG * 5 / 16;
+            bufferB[idx + width] += errB * 5 / 16;
+            if (x + 1 < width) {
+              bufferR[idx + width + 1] += errR * 1 / 16;
+              bufferG[idx + width + 1] += errG * 1 / 16;
+              bufferB[idx + width + 1] += errB * 1 / 16;
+            }
+          }
         } else {
+          // Monocromo
+          const luma = 0.299 * bufferR[idx] + 0.587 * bufferG[idx] + 0.114 * bufferB[idx];
+          const newPixel = luma < 128 ? 0 : 255;
+          const error = luma - newPixel;
+
+          const val = isInverted ? (newPixel === 0 ? 255 : 0) : newPixel;
           outData[outIdx] = val;
           outData[outIdx+1] = val;
           outData[outIdx+2] = val;
           outData[outIdx+3] = 255;
-        }
 
-        if (x + 1 < width) buffer[idx + 1] += error * 7 / 16;
-        if (y + 1 < height) {
-          if (x > 0) buffer[idx + width - 1] += error * 3 / 16;
-          buffer[idx + width] += error * 5 / 16;
-          if (x + 1 < width) buffer[idx + width + 1] += error * 1 / 16;
+          if (x + 1 < width) bufferR[idx + 1] += error * 7 / 16;
+          if (y + 1 < height) {
+            if (x > 0) bufferR[idx + width - 1] += error * 3 / 16;
+            bufferR[idx + width] += error * 5 / 16;
+            if (x + 1 < width) bufferR[idx + width + 1] += error * 1 / 16;
+          }
         }
       }
     }
     ctx.putImageData(imgOut, 0, 0);
 
   } else {
+    // Semitono Halftone Clásico (Color u Monocromo)
     const angleRad = (parseFloat(screenAngleInput.value) * Math.PI) / 180;
     const shape = dotShapeSelect.value;
 
@@ -282,15 +322,35 @@ function processHalftone() {
 
         const sampleX = Math.min(Math.max(Math.floor(cx), 0), width - 1);
         const sampleY = Math.min(Math.max(Math.floor(cy), 0), height - 1);
-        const luma = processedPixels[sampleY * width + sampleX];
+        const idx = (sampleY * width + sampleX) * 4;
 
-        const brightness = luma / 255;
-        const radius = (1 - brightness) * (cellSize / 2);
+        if (data[idx + 3] < 20) continue;
+
+        let r = adjustChannel(data[idx], blackPoint, whitePoint, gamma);
+        let g = adjustChannel(data[idx+1], blackPoint, whitePoint, gamma);
+        let b = adjustChannel(data[idx+2], blackPoint, whitePoint, gamma);
+
+        if (isInverted) {
+          r = 255 - r;
+          g = 255 - g;
+          b = 255 - b;
+        }
+
+        let luma = 0.299 * r + 0.587 * g + 0.114 * b;
+        let brightness = luma / 255;
+        let radius = (1 - brightness) * (cellSize / 2);
 
         if (radius > 0.3) {
           ctx.save();
           ctx.translate(cx, cy);
           ctx.rotate(angleRad);
+
+          // Asignar el color según el modo seleccionado
+          if (isColorMode) {
+            ctx.fillStyle = `rgb(${Math.round(r)}, ${Math.round(g)}, ${Math.round(b)})`;
+          } else {
+            ctx.fillStyle = isInverted ? '#ffffff' : '#000000';
+          }
 
           ctx.beginPath();
           if (shape === 'round') {
@@ -366,7 +426,7 @@ downloadBtn.addEventListener('click', () => {
   const dpiDataUrl = setPngDpi(originalDataUrl, 300);
 
   const link = document.createElement('a');
-  link.download = 'semitono_300dpi.png';
+  link.download = 'semitono_color_300dpi.png';
   link.href = dpiDataUrl;
   link.click();
 });
