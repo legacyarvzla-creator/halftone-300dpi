@@ -5,6 +5,7 @@ const lpiVal = document.getElementById('lpiVal');
 const screenAngleInput = document.getElementById('screenAngle');
 const angleVal = document.getElementById('angleVal');
 const dotShapeSelect = document.getElementById('dotShape');
+const invertToggle = document.getElementById('invertToggle');
 const downloadBtn = document.getElementById('downloadBtn');
 
 const cropBgToggle = document.getElementById('cropBgToggle');
@@ -23,8 +24,6 @@ const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d');
 
 let loadedImage = null;
-let dotColor = '#000000';
-let bgColor = '#ffffff';
 
 window.resetInput = function(id, defaultValue) {
   const el = document.getElementById(id);
@@ -63,6 +62,10 @@ methodSelect.addEventListener('change', () => {
 });
 
 dotShapeSelect.addEventListener('change', () => {
+  if (loadedImage) processHalftone();
+});
+
+invertToggle.addEventListener('change', () => {
   if (loadedImage) processHalftone();
 });
 
@@ -184,6 +187,7 @@ function processHalftone() {
   const blackPoint = parseInt(blackPointInput.value, 10);
   const whitePoint = parseInt(whitePointInput.value, 10);
   const gamma = parseFloat(gammaInput.value);
+  const isInverted = invertToggle.checked;
 
   const width = canvas.width;
   const height = canvas.height;
@@ -212,12 +216,18 @@ function processHalftone() {
       luma = normalized * 255;
     }
 
+    // Si está marcado para prenda oscura, invertimos los valores tonales
+    if (isInverted) {
+      luma = 255 - luma;
+    }
+
     processedPixels[i / 4] = luma;
   }
 
-  ctx.fillStyle = bgColor;
+  // Fondo y color de puntos adaptados si se invierte
+  ctx.fillStyle = isInverted ? '#000000' : '#ffffff';
   ctx.fillRect(0, 0, width, height);
-  ctx.fillStyle = dotColor;
+  ctx.fillStyle = isInverted ? '#ffffff' : '#000000';
 
   const method = methodSelect.value;
   const lpi = parseInt(screenLpiInput.value, 10);
@@ -236,11 +246,20 @@ function processHalftone() {
         const error = oldPixel - newPixel;
 
         const outIdx = idx * 4;
-        const val = dotColor === '#ffffff' ? (newPixel === 0 ? 255 : 0) : newPixel;
-        outData[outIdx] = dotColor === '#ffffff' ? 255 : val;
-        outData[outIdx+1] = dotColor === '#ffffff' ? 255 : val;
-        outData[outIdx+2] = dotColor === '#ffffff' ? 255 : val;
-        outData[outIdx+3] = 255;
+        let val = newPixel;
+        
+        if (isInverted) {
+          val = newPixel === 0 ? 255 : 0;
+          outData[outIdx] = val;
+          outData[outIdx+1] = val;
+          outData[outIdx+2] = val;
+          outData[outIdx+3] = val === 0 ? 0 : 255;
+        } else {
+          outData[outIdx] = val;
+          outData[outIdx+1] = val;
+          outData[outIdx+2] = val;
+          outData[outIdx+3] = 255;
+        }
 
         if (x + 1 < width) buffer[idx + 1] += error * 7 / 16;
         if (y + 1 < height) {
