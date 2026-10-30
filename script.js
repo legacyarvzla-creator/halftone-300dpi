@@ -222,13 +222,9 @@ function processHalftone() {
   canvas.width = sourceToProcess.width;
   canvas.height = sourceToProcess.height;
 
-  // 1. Limpiamos el canvas dejándolo transparente
   ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-  // 2. Dibujamos la imagen original para mantener colores y tonos claros SÓLIDOS y limpios
   ctx.drawImage(sourceToProcess, 0, 0);
 
-  // 3. Eliminamos el fondo negro puro de la imagen base dejándolo transparente
   const visibleData = ctx.getImageData(0, 0, canvas.width, canvas.height);
   const vData = visibleData.data;
   for (let i = 0; i < vData.length; i += 4) {
@@ -238,7 +234,6 @@ function processHalftone() {
   }
   ctx.putImageData(visibleData, 0, 0);
 
-  // Creamos un canvas temporal para leer los datos originales de la imagen
   const tempCanvas = document.createElement('canvas');
   tempCanvas.width = sourceToProcess.width;
   tempCanvas.height = sourceToProcess.height;
@@ -254,10 +249,8 @@ function processHalftone() {
   const shape = dotShapeSelect.value;
   const lpi = parseInt(screenLpiInput.value, 10);
   
-  // Tamaño de celda controlado por LPI (calibre)
   const cellSize = Math.max(3, Math.round(180 / lpi));
 
-  // 4. Aplicamos el tramado de puntos negros EXCLUSIVAMENTE en las zonas de sombra/degradé
   for (let y = 0; y < canvas.height; y += cellSize) {
     for (let x = 0; x < canvas.width; x += cellSize) {
       const cx = x + cellSize / 2;
@@ -283,7 +276,6 @@ function processHalftone() {
 
       let luma = 0.299 * r + 0.587 * g + 0.114 * b;
       
-      // El tramado solo actúa en sombras profundas y transiciones de degradé (luma baja)
       let darkness = 1 - (luma / 255);
       let radius = darkness * (cellSize * 0.85);
 
@@ -408,5 +400,3 @@ if (darkGarmentPresetBtn) {
     if (loadedImage) processHalftone();
   });
 }
-
-
