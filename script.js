@@ -84,14 +84,30 @@ if (blackPointInput) blackPointInput.addEventListener('input', () => { if (black
 if (whitePointInput) whitePointInput.addEventListener('input', () => { if (whitePointVal) whitePointVal.textContent = whitePointInput.value; if (loadedImage) processHalftone(); });
 if (gammaInput) gammaInput.addEventListener('input', () => { if (gammaVal) gammaVal.textContent = parseFloat(gammaInput.value).toFixed(2); if (loadedImage) processHalftone(); });
 
-      processHalftone();
-      downloadBtn.disabled = false;
+if (imageInput) {
+  imageInput.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        loadedImage = img;
+        canvas.width = img.width;
+        canvas.height = img.height;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0);
+
+        processHalftone();
+        if (downloadBtn) downloadBtn.disabled = false;
+      };
+      img.onerror = () => { alert("Error al cargar la imagen."); };
+      img.src = event.target.result;
     };
-    img.onerror = () => { alert("Error al cargar la imagen."); };
-    img.src = event.target.result;
-  };
-  reader.readAsDataURL(file);
-});
+    reader.readAsDataURL(file);
+  });
+}
 
 function getCroppedImageCanvas(img, threshold) {
   const tempCanvas = document.createElement('canvas');
@@ -175,9 +191,11 @@ function adjustChannel(val, blackPoint, whitePoint, gamma) {
 }
 
 function processHalftone() {
+  if (!loadedImage || !canvas || !ctx) return;
+
   let sourceToProcess = loadedImage;
-  if (cropBgToggle.checked) {
-    const thresholdVal = parseInt(cropThresholdInput.value, 10);
+  if (cropBgToggle && cropBgToggle.checked) {
+    const thresholdVal = parseInt(cropThresholdInput ? cropThresholdInput.value : 20, 10);
     sourceToProcess = getCroppedImageCanvas(loadedImage, thresholdVal);
   }
 
@@ -205,13 +223,13 @@ function processHalftone() {
   tempCtx.drawImage(sourceToProcess, 0, 0);
   const data = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height).data;
 
-  const blackPoint = parseInt(blackPointInput.value, 10);
-  const whitePoint = parseInt(whitePointInput.value, 10);
-  const gamma = parseFloat(gammaInput.value);
-  const isInverted = invertToggle.checked;
-  const angleRad = (parseFloat(screenAngleInput.value) * Math.PI) / 180;
-  const shape = dotShapeSelect.value;
-  const lpi = parseInt(screenLpiInput.value, 10);
+  const blackPoint = parseInt(blackPointInput ? blackPointInput.value : 0, 10);
+  const whitePoint = parseInt(whitePointInput ? whitePointInput.value : 255, 10);
+  const gamma = parseFloat(gammaInput ? gammaInput.value : 1.0);
+  const isInverted = invertToggle ? invertToggle.checked : false;
+  const angleRad = (parseFloat(screenAngleInput ? screenAngleInput.value : 22.5) * Math.PI) / 180;
+  const shape = dotShapeSelect ? dotShapeSelect.value : 'round';
+  const lpi = parseInt(screenLpiInput ? screenLpiInput.value : 30, 10);
   const currentMethod = methodSelect ? methodSelect.value : 'standard';
   
   const cellSize = Math.max(3, Math.round(180 / lpi));
@@ -422,40 +440,42 @@ for (let n = 0; n < 256; n++) {
   crcTable[n] = c;
 }
 
-downloadBtn.addEventListener('click', () => {
-  if (!loadedImage) return;
+if (downloadBtn) {
+  downloadBtn.addEventListener('click', () => {
+    if (!loadedImage) return;
 
-  try {
-    downloadBtn.textContent = 'Generando archivo...';
-    downloadBtn.disabled = true;
+    try {
+      downloadBtn.textContent = 'Generando archivo...';
+      downloadBtn.disabled = true;
 
-    setTimeout(() => {
-      const originalDataUrl = canvas.toDataURL('image/png', 1.0);
-      const dpiDataUrl = setPngDpi(originalDataUrl, 300);
+      setTimeout(() => {
+        const originalDataUrl = canvas.toDataURL('image/png', 1.0);
+        const dpiDataUrl = setPngDpi(originalDataUrl, 300);
 
-      const link = document.createElement('a');
-      link.download = 'semitonos_legacy_300dpi.png';
-      link.href = dpiDataUrl;
-      link.click();
+        const link = document.createElement('a');
+        link.download = 'semitonos_legacy_300dpi.png';
+        link.href = dpiDataUrl;
+        link.click();
 
+        downloadBtn.textContent = 'Descargar Imagen (300 DPI)';
+        downloadBtn.disabled = false;
+      }, 100);
+
+    } catch (error) {
+      console.error("Error al descargar:", error);
+      alert("La imagen es demasiado grande para la memoria del navegador.");
       downloadBtn.textContent = 'Descargar Imagen (300 DPI)';
       downloadBtn.disabled = false;
-    }, 100);
-
-  } catch (error) {
-    console.error("Error al descargar:", error);
-    alert("La imagen es demasiado grande para la memoria del navegador.");
-    downloadBtn.textContent = 'Descargar Imagen (300 DPI)';
-    downloadBtn.disabled = false;
-  }
-});
+    }
+  });
+}
 
 const darkGarmentPresetBtn = document.getElementById('darkGarmentPresetBtn');
 if (darkGarmentPresetBtn) {
   darkGarmentPresetBtn.addEventListener('click', () => {
-    invertToggle.checked = !invertToggle.checked;
+    if (invertToggle) invertToggle.checked = !invertToggle.checked;
     
-    if (invertToggle.checked) {
+    if (invertToggle && invertToggle.checked) {
       darkGarmentPresetBtn.style.background = 'linear-gradient(135deg, #cfd9df 0%, #90a4ae 100%)';
       darkGarmentPresetBtn.style.color = '#0b0c10';
       darkGarmentPresetBtn.style.borderColor = '#ffffff';
