@@ -123,7 +123,7 @@ function getCroppedImageCanvas(img, threshold) {
   toping: for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
       const idx = (y * width + x) * 4;
-      if (data[idx] > threshold || data[idx+1] > threshold || data[idx+2] > threshold) {
+      if (data[idx+3] > 20 && (data[idx] > threshold || data[idx+1] > threshold || data[idx+2] > threshold)) {
         top = y;
         break toping;
       }
@@ -133,7 +133,7 @@ function getCroppedImageCanvas(img, threshold) {
   bottoming: for (let y = height - 1; y >= top; y--) {
     for (let x = 0; x < width; x++) {
       const idx = (y * width + x) * 4;
-      if (data[idx] > threshold || data[idx+1] > threshold || data[idx+2] > threshold) {
+      if (data[idx+3] > 20 && (data[idx] > threshold || data[idx+1] > threshold || data[idx+2] > threshold)) {
         bottom = y + 1;
         break bottoming;
       }
@@ -143,7 +143,7 @@ function getCroppedImageCanvas(img, threshold) {
   lefting: for (let x = 0; x < width; x++) {
     for (let y = top; y < bottom; y++) {
       const idx = (y * width + x) * 4;
-      if (data[idx] > threshold || data[idx+1] > threshold || data[idx+2] > threshold) {
+      if (data[idx+3] > 20 && (data[idx] > threshold || data[idx+1] > threshold || data[idx+2] > threshold)) {
         left = x;
         break lefting;
       }
@@ -153,7 +153,7 @@ function getCroppedImageCanvas(img, threshold) {
   righting: for (let x = width - 1; x >= left; x--) {
     for (let y = top; y < bottom; y++) {
       const idx = (y * width + x) * 4;
-      if (data[idx] > threshold || data[idx+1] > threshold || data[idx+2] > threshold) {
+      if (data[idx+3] > 20 && (data[idx] > threshold || data[idx+1] > threshold || data[idx+2] > threshold)) {
         right = x + 1;
         break righting;
       }
@@ -212,8 +212,8 @@ function processHalftone() {
   const width = canvas.width;
   const height = canvas.height;
 
-  ctx.fillStyle = isInverted ? '#000000' : '#ffffff';
-  ctx.fillRect(0, 0, width, height);
+  // Limpiar completamente para mantener transparencia nativa
+  ctx.clearRect(0, 0, width, height);
 
   const method = methodSelect.value;
   const lpi = parseInt(screenLpiInput.value, 10);
@@ -228,6 +228,11 @@ function processHalftone() {
     const bufferB = new Float32Array(width * height);
 
     for (let i = 0; i < data.length; i += 4) {
+      if (data[i + 3] < 20) {
+        bufferR[i / 4] = -1;
+        continue;
+      }
+
       let r = adjustChannel(data[i], blackPoint, whitePoint, gamma);
       let g = adjustChannel(data[i+1], blackPoint, whitePoint, gamma);
       let b = adjustChannel(data[i+2], blackPoint, whitePoint, gamma);
@@ -248,7 +253,7 @@ function processHalftone() {
         const idx = y * width + x;
         const outIdx = idx * 4;
 
-        if (data[outIdx + 3] < 20) {
+        if (bufferR[idx] === -1) {
           outData[outIdx + 3] = 0;
           continue;
         }
@@ -265,21 +270,23 @@ function processHalftone() {
           outData[outIdx+3] = 255;
 
           const errR = oldR - newR, errG = oldG - newG, errB = oldB - newB;
-          if (x + 1 < width) {
+          if (x + 1 < width && bufferR[idx + 1] !== -1) {
             bufferR[idx + 1] += errR * 7 / 16;
             bufferG[idx + 1] += errG * 7 / 16;
             bufferB[idx + 1] += errB * 7 / 16;
           }
           if (y + 1 < height) {
-            if (x > 0) {
+            if (x > 0 && bufferR[idx + width - 1] !== -1) {
               bufferR[idx + width - 1] += errR * 3 / 16;
               bufferG[idx + width - 1] += errG * 3 / 16;
               bufferB[idx + width - 1] += errB * 3 / 16;
             }
-            bufferR[idx + width] += errR * 5 / 16;
-            bufferG[idx + width] += errG * 5 / 16;
-            bufferB[idx + width] += errB * 5 / 16;
-            if (x + 1 < width) {
+            if (bufferR[idx + width] !== -1) {
+              bufferR[idx + width] += errR * 5 / 16;
+              bufferG[idx + width] += errG * 5 / 16;
+              bufferB[idx + width] += errB * 5 / 16;
+            }
+            if (x + 1 < width && bufferR[idx + width + 1] !== -1) {
               bufferR[idx + width + 1] += errR * 1 / 16;
               bufferG[idx + width + 1] += errG * 1 / 16;
               bufferB[idx + width + 1] += errB * 1 / 16;
@@ -296,11 +303,11 @@ function processHalftone() {
           outData[outIdx+2] = val;
           outData[outIdx+3] = 255;
 
-          if (x + 1 < width) bufferR[idx + 1] += error * 7 / 16;
+          if (x + 1 < width && bufferR[idx + 1] !== -1) bufferR[idx + 1] += error * 7 / 16;
           if (y + 1 < height) {
-            if (x > 0) bufferR[idx + width - 1] += error * 3 / 16;
-            bufferR[idx + width] += error * 5 / 16;
-            if (x + 1 < width) bufferR[idx + width + 1] += error * 1 / 16;
+            if (x > 0 && bufferR[idx + width - 1] !== -1) bufferR[idx + width - 1] += error * 3 / 16;
+            if (bufferR[idx + width] !== -1) bufferR[idx + width] += error * 5 / 16;
+            if (x + 1 < width && bufferR[idx + width + 1] !== -1) bufferR[idx + width + 1] += error * 1 / 16;
           }
         }
       }
