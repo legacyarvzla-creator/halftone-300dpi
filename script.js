@@ -377,6 +377,35 @@ function setPngDpi(dataUrl, dpi = 300) {
   }
 
   const insertIndex = 33;
+  const physChunk = new Uint8Array(21); // Corregido de 18 a 21 bytes
+  const view = new DataView(physChunk.buffer);
+  
+  view.setUint32(0, 9); // Longitud de los datos del chunk (9 bytes)
+  physChunk[4] = 112; // 'p'
+  physChunk[5] = 72;  // 'H'
+  physChunk[6] = 89;  // 'y'
+  physChunk[7] = 115; // 's'
+  view.setUint32(8, ppm);   // Pixeles por unidad en X
+  view.setUint32(12, ppm);  // Pixeles por unidad en Y
+  physChunk[16] = 1;        // Unidad (1 = metro)
+
+  // Calcular CRC de los bytes 4 al 16 (Tipo + Datos)
+  const crc = calculateCRC32(physChunk.subarray(4, 17));
+  view.setUint32(17, crc); // Escribir CRC en los últimos 4 bytes (17 a 20)
+
+  const finalBytes = new Uint8Array(bytes.length + physChunk.length);
+  finalBytes.set(bytes.subarray(0, insertIndex), 0);
+  finalBytes.set(physChunk, insertIndex);
+  finalBytes.set(bytes.subarray(insertIndex), insertIndex + physChunk.length);
+
+  let newBinary = '';
+  for (let i = 0; i < finalBytes.length; i++) {
+    newBinary += String.fromCharCode(finalBytes[i]);
+  }
+  return 'data:image/png;base64,' + btoa(newBinary);
+}
+
+  const insertIndex = 33;
   const physChunk = new Uint8Array(18);
   const view = new DataView(physChunk.buffer);
   
