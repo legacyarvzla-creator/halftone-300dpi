@@ -189,13 +189,9 @@ function processHalftone() {
   canvas.width = sourceToProcess.width;
   canvas.height = sourceToProcess.height;
 
-  // 1. Limpiamos el canvas principal
   ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-  // 2. Dibujamos la imagen original de base
   ctx.drawImage(sourceToProcess, 0, 0);
 
-  // 3. Limpieza absoluta del fondo negro exterior
   const imgDataLayer = ctx.getImageData(0, 0, canvas.width, canvas.height);
   const pxData = imgDataLayer.data;
   for (let i = 0; i < pxData.length; i += 4) {
@@ -207,7 +203,6 @@ function processHalftone() {
   }
   ctx.putImageData(imgDataLayer, 0, 0);
 
-  // 4. Canvas temporal para lectura de niveles
   const tempCanvas = document.createElement('canvas');
   tempCanvas.width = sourceToProcess.width;
   tempCanvas.height = sourceToProcess.height;
@@ -226,12 +221,10 @@ function processHalftone() {
   
   const cellSize = Math.max(3, Math.round(180 / lpi));
 
-  // 5. Selección del método de tramado
   if (currentMethod === 'stochastic_fade') {
-    // --- MODO DIFUMINADO ORGÁNICO (Sin malla, ideal para fundir con la franela) ---
+    // --- MODO 1: DIFUMINADO ORGÁNICO (Sin malla) ---
     for (let y = 0; y < canvas.height; y += cellSize) {
       for (let x = 0; x < canvas.width; x += cellSize) {
-        
         const jitterX = (Math.random() - 0.5) * (cellSize * 0.7);
         const jitterY = (Math.random() - 0.5) * (cellSize * 0.7);
         
@@ -280,8 +273,59 @@ function processHalftone() {
         }
       }
     }
+  } else if (currentMethod === 'diffusion') {
+    // --- MODO 2: DIFUSIÓN (Tipo grano / Floyd-Steinberg) ---
+    const imgW = canvas.width;
+    const imgH = canvas.height;
+    const grayBuffer = new Float32Array(imgW * imgH);
+
+    for (let i = 0; i < data.length; i += 4) {
+      const idx = i / 4;
+      if (data[i+3] < 20) {
+        grayBuffer[idx] = 255;
+      } else {
+        let r = adjustChannel(data[i], blackPoint, whitePoint, gamma);
+        let g = adjustChannel(data[i+1], blackPoint, whitePoint, gamma);
+        let b = adjustChannel(data[i+2], blackPoint, whitePoint, gamma);
+        if (isInverted) { r = 255 - r; g = 255 - g; b = 255 - b; }
+        grayBuffer[idx] = 0.299 * r + 0.587 * g + 0.114 * b;
+      }
+    }
+
+    const outputData = ctx.createImageData(imgW, imgH);
+    const outPx = outputData.data;
+
+    for (let y = 0; y < imgH; y++) {
+      for (let x = 0; x < imgW; x++) {
+        const idx = y * imgW + x;
+        const oldPixel = grayBuffer[idx];
+        const newPixel = oldPixel < 128 ? 0 : 255;
+        const error = (oldPixel - newPixel) / 16;
+
+        const outIdx = idx * 4;
+        const val = isInverted ? (newPixel === 0 ? 255 : 0) : newPixel;
+        
+        if (data[idx * 4 + 3] > 20 && !(data[idx * 4] < 15 && data[idx * 4 + 1] < 15 && data[idx * 4 + 2] < 15)) {
+          outPx[outIdx] = val;
+          outPx[outIdx + 1] = val;
+          outPx[outIdx + 2] = val;
+          outPx[outIdx + 3] = 255;
+        } else {
+          outPx[outIdx + 3] = 0;
+        }
+
+        if (x + 1 < imgW) grayBuffer[idx + 1] += error * 7;
+        if (y + 1 < imgH) {
+          if (x > 0) grayBuffer[(y + 1) * imgW + x - 1] += error * 3;
+          grayBuffer[(y + 1) * imgW + x] += error * 5;
+          if (x + 1 < imgW) grayBuffer[(y + 1) * imgW + x + 1] += error * 1;
+        }
+      }
+    }
+    ctx.putImageData(outputData, 0, 0);
+
   } else {
-    // --- MODO TRAMADO ESTÁNDAR (Rejilla clásica) ---
+    // --- MODO 3: TRAMADO ESTÁNDAR (El clásico que te gustaba) ---
     for (let y = 0; y < canvas.height; y += cellSize) {
       for (let x = 0; x < canvas.width; x += cellSize) {
         const cx = x + cellSize / 2;
