@@ -212,18 +212,6 @@ function adjustChannel(val, blackPoint, whitePoint, gamma) {
   return v;
 }
 
-function isTargetColor(r, g, b, filter) {
-  if (filter === 'all') return true;
-  if (filter === 'black') return (r < 80 && g < 80 && b < 80);
-  if (filter === 'red') return (r > g + 40 && r > b + 40);
-  if (filter === 'green') return (g > r + 40 && g > b + 40);
-  if (filter === 'blue') return (b > r + 40 && b > g + 40);
-  if (filter === 'yellow') return (r > 150 && g > 150 && b < 100);
-  if (filter === 'pink') return (r > 150 && b > 120 && g < 130);
-  if (filter === 'white') return (r > 200 && g > 200 && b > 200);
-  return false;
-}
-
 function processHalftone() {
   let sourceToProcess = loadedImage;
   if (cropBgToggle.checked) {
@@ -234,10 +222,9 @@ function processHalftone() {
   canvas.width = sourceToProcess.width;
   canvas.height = sourceToProcess.height;
 
-  // Limpiamos el canvas principal para dejar el fondo transparente
+  // Limpiamos el canvas principal para garantizar fondo transparente
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  // Canvas temporal para leer los pixeles originales limpios y sin alteración de color
   const tempCanvas = document.createElement('canvas');
   tempCanvas.width = sourceToProcess.width;
   tempCanvas.height = sourceToProcess.height;
@@ -251,13 +238,12 @@ function processHalftone() {
   const whitePoint = parseInt(whitePointInput.value, 10);
   const gamma = parseFloat(gammaInput.value);
   const isInverted = invertToggle.checked;
-  const isColorMode = colorModeSelect.value === 'color';
   const angleRad = (parseFloat(screenAngleInput.value) * Math.PI) / 180;
   const shape = dotShapeSelect.value;
   const lpi = parseInt(screenLpiInput.value, 10);
   
-  // Tamaño de celda amplio para obtener puntos separados y delicados
-  const cellSize = Math.max(4, Math.round(220 / lpi));
+  // Celda calculada por LPI para controlar la separación y el calibre
+  const cellSize = Math.max(3, Math.round(180 / lpi));
 
   for (let y = 0; y < canvas.height; y += cellSize) {
     for (let x = 0; x < canvas.width; x += cellSize) {
@@ -268,19 +254,13 @@ function processHalftone() {
       const sampleY = Math.min(Math.max(Math.floor(cy), 0), canvas.height - 1);
       const idx = (sampleY * canvas.width + sampleX) * 4;
 
+      // Si es transparente original, omitir
       if (data[idx + 3] < 20) continue;
 
       let r = data[idx], g = data[idx+1], b = data[idx+2];
 
-      // Eliminar fondo negro puro para garantizar transparencia absoluta
-      if (r < 25 && g < 25 && b < 25) continue;
-
-      if (activeColorFilter !== 'all') {
-        if (!isTargetColor(r, g, b, activeColorFilter)) continue;
-      }
-
-      // Guardamos el color original exacto de la muestra antes de cualquier ajuste de niveles
-      const origR = r, origG = g, origB = b;
+      // Eliminar fondo negro absoluto para que quede transparente
+      if (r < 20 && g < 20 && b < 20) continue;
 
       r = adjustChannel(r, blackPoint, whitePoint, gamma);
       g = adjustChannel(g, blackPoint, whitePoint, gamma);
@@ -290,35 +270,31 @@ function processHalftone() {
         r = 255 - r; g = 255 - g; b = 255 - b;
       }
 
+      // Calculamos la luminancia (oscuridad de la zona)
       let luma = 0.299 * r + 0.587 * g + 0.114 * b;
+      
+      // En un semitono real, entre más oscuro (luma baja), mayor debe ser el punto negro.
+      // Si luma es cercana a 255 (blanco), el radio es 0 (no hay punto).
+      let darkness = 1 - (luma / 255);
+      let radius = darkness * (cellSize * 0.9);
 
-      // Aplicar tramado sutil solo en los degradés y sombras de transición
-      if (luma > 25 && luma < 230) {
-        let brightness = luma / 255;
-        let radius = (1 - brightness) * (cellSize / 2.2);
+      // Solo dibujamos puntos negros definidos donde haya sombra/degradé real
+      if (radius > 0.5 && luma < 240) {
+        ctx.save();
+        ctx.translate(cx, cy);
+        ctx.rotate(angleRad);
+        
+        ctx.fillStyle = isInverted ? '#ffffff' : '#000000'; // Puntos estrictamente negros (o blancos si se invierte)
 
-        if (radius > 0.4) {
-          ctx.save();
-          ctx.translate(cx, cy);
-          ctx.rotate(angleRad);
-          
-          // Mantiene los colores originales reales de la imagen sin alterar tonos
-          if (isColorMode) {
-            ctx.fillStyle = `rgb(${origR}, ${origG}, ${origB})`;
-          } else {
-            ctx.fillStyle = isInverted ? '#ffffff' : '#000000';
-          }
-
-          ctx.beginPath();
-          if (shape === 'round') {
-            ctx.arc(0, 0, radius, 0, Math.PI * 2);
-            ctx.fill();
-          } else if (shape === 'line') {
-            const lineWidth = radius * 1.6;
-            ctx.fillRect(-cellSize / 2, -lineWidth / 2, cellSize, lineWidth);
-          }
-          ctx.restore();
+        ctx.beginPath();
+        if (shape === 'round') {
+          ctx.arc(0, 0, radius, 0, Math.PI * 2);
+          ctx.fill();
+        } else if (shape === 'line') {
+          const lineWidth = radius * 1.5;
+          ctx.fillRect(-cellSize / 2, -lineWidth / 2, cellSize, lineWidth);
         }
+        ctx.restore();
       }
     }
   }
