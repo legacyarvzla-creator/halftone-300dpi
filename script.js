@@ -488,7 +488,8 @@ downloadBtn.addEventListener('click', () => {
     downloadBtn.disabled = true;
 
     setTimeout(() => {
-      const originalDataUrl = canvas.toDataURL('image/png');
+      // Nos aseguramos de obtener la URL limpia directamente del canvas con alfa intacto
+      const originalDataUrl = canvas.toDataURL('image/png', 1.0);
       const dpiDataUrl = setPngDpi(originalDataUrl, 300);
 
       const link = document.createElement('a');
