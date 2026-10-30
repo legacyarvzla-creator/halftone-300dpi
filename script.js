@@ -22,13 +22,14 @@ const gammaInput = document.getElementById('gammaInput');
 const gammaVal = document.getElementById('gammaVal');
 
 const canvas = document.getElementById('canvas');
-const ctx = canvas.getContext('2d', { willReadFrequently: true });
+const ctx = canvas ? canvas.getContext('2d', { willReadFrequently: true }) : null;
 
 let loadedImage = null;
 let activeColorFilter = 'all';
 
 window.resetInput = function(id, defaultValue) {
   const el = document.getElementById(id);
+  if (!el) return;
   el.value = defaultValue;
   el.dispatchEvent(new Event('input'));
 };
@@ -49,45 +50,39 @@ document.querySelectorAll('.color-filter-btn').forEach(btn => {
   });
 });
 
-cropBgToggle.addEventListener('change', () => {
-  if (cropBgToggle.checked) {
-    cropThresholdGroup.style.opacity = '1';
-    cropThresholdGroup.style.pointerEvents = 'auto';
-  } else {
-    cropThresholdGroup.style.opacity = '0.5';
-    cropThresholdGroup.style.pointerEvents = 'none';
-  }
-  if (loadedImage) processHalftone();
-});
+if (cropBgToggle) {
+  cropBgToggle.addEventListener('change', () => {
+    if (cropBgToggle.checked) {
+      if (cropThresholdGroup) {
+        cropThresholdGroup.style.opacity = '1';
+        cropThresholdGroup.style.pointerEvents = 'auto';
+      }
+    } else {
+      if (cropThresholdGroup) {
+        cropThresholdGroup.style.opacity = '0.5';
+        cropThresholdGroup.style.pointerEvents = 'none';
+      }
+    }
+    if (loadedImage) processHalftone();
+  });
+}
 
-cropThresholdInput.addEventListener('input', () => {
-  cropThresholdValue.textContent = cropThresholdInput.value;
-  if (loadedImage && cropBgToggle.checked) processHalftone();
-});
+if (cropThresholdInput) {
+  cropThresholdInput.addEventListener('input', () => {
+    if (cropThresholdValue) cropThresholdValue.textContent = cropThresholdInput.value;
+    if (loadedImage && cropBgToggle && cropBgToggle.checked) processHalftone();
+  });
+}
 
-colorModeSelect.addEventListener('change', () => { if (loadedImage) processHalftone(); });
-screenLpiInput.addEventListener('input', () => { lpiVal.textContent = screenLpiInput.value; if (loadedImage) processHalftone(); });
-screenAngleInput.addEventListener('input', () => { angleVal.textContent = screenAngleInput.value; if (loadedImage) processHalftone(); });
-methodSelect.addEventListener('change', () => { if (loadedImage) processHalftone(); });
-dotShapeSelect.addEventListener('change', () => { if (loadedImage) processHalftone(); });
-invertToggle.addEventListener('change', () => { if (loadedImage) processHalftone(); });
-blackPointInput.addEventListener('input', () => { blackPointVal.textContent = blackPointInput.value; if (loadedImage) processHalftone(); });
-whitePointInput.addEventListener('input', () => { whitePointVal.textContent = whitePointInput.value; if (loadedImage) processHalftone(); });
-gammaInput.addEventListener('input', () => { gammaVal.textContent = parseFloat(gammaInput.value).toFixed(2); if (loadedImage) processHalftone(); });
-
-imageInput.addEventListener('change', (e) => {
-  const file = e.target.files[0];
-  if (!file) return;
-
-  const reader = new FileReader();
-  reader.onload = (event) => {
-    const img = new Image();
-    img.onload = () => {
-      loadedImage = img;
-      canvas.width = img.width;
-      canvas.height = img.height;
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.drawImage(img, 0, 0);
+if (colorModeSelect) colorModeSelect.addEventListener('change', () => { if (loadedImage) processHalftone(); });
+if (screenLpiInput) screenLpiInput.addEventListener('input', () => { if (lpiVal) lpiVal.textContent = screenLpiInput.value; if (loadedImage) processHalftone(); });
+if (screenAngleInput) screenAngleInput.addEventListener('input', () => { if (angleVal) angleVal.textContent = screenAngleInput.value; if (loadedImage) processHalftone(); });
+if (methodSelect) methodSelect.addEventListener('change', () => { if (loadedImage) processHalftone(); });
+if (dotShapeSelect) dotShapeSelect.addEventListener('change', () => { if (loadedImage) processHalftone(); });
+if (invertToggle) invertToggle.addEventListener('change', () => { if (loadedImage) processHalftone(); });
+if (blackPointInput) blackPointInput.addEventListener('input', () => { if (blackPointVal) blackPointVal.textContent = blackPointInput.value; if (loadedImage) processHalftone(); });
+if (whitePointInput) whitePointInput.addEventListener('input', () => { if (whitePointVal) whitePointVal.textContent = whitePointInput.value; if (loadedImage) processHalftone(); });
+if (gammaInput) gammaInput.addEventListener('input', () => { if (gammaVal) gammaVal.textContent = parseFloat(gammaInput.value).toFixed(2); if (loadedImage) processHalftone(); });
 
       processHalftone();
       downloadBtn.disabled = false;
