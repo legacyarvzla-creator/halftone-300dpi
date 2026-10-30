@@ -8,6 +8,12 @@ const ctx = canvas.getContext('2d');
 
 let loadedImage = null;
 
+// Creamos controles adicionales dinámicamente si no están en el HTML, 
+// o puedes agregarlos en tu HTML. Aquí manejaremos los valores por defecto:
+let dotColor = '#000000'; // Color del punto por defecto (Negro)
+let bgColor = '#ffffff';  // Color de fondo por defecto (Blanco)
+let mode = 'bw';          // 'bw' (Blanco y Negro) o 'color' (Halftone a color CMYK/RGB)
+
 imageInput.addEventListener('change', (e) => {
   const file = e.target.files[0];
   if (!file) return;
@@ -41,16 +47,22 @@ function processHalftone() {
   canvas.width = loadedImage.width;
   canvas.height = loadedImage.height;
 
+  // Dibujar imagen original temporalmente para leer píxeles
   ctx.drawImage(loadedImage, 0, 0);
   const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
   const data = imageData.data;
 
-  ctx.fillStyle = '#ffffff';
+  // 1. Rellenar con el color de fondo elegido (ej: Blanco, Negro o transparente)
+  ctx.fillStyle = bgColor;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
-  ctx.fillStyle = '#000000';
 
+  // 2. Establecer el color de los puntos (ej: Negro, Blanco para DTF sobre negro, o colores)
+  ctx.fillStyle = dotColor;
+
+  // Dibujar la trama de semitonos
   for (let y = 0; y < canvas.height; y += gridSpacing) {
     for (let x = 0; x < canvas.width; x += gridSpacing) {
+      
       const pixelX = Math.min(x + Math.floor(gridSpacing / 2), canvas.width - 1);
       const pixelY = Math.min(y + Math.floor(gridSpacing / 2), canvas.height - 1);
       const index = (pixelY * canvas.width + pixelX) * 4;
@@ -58,11 +70,20 @@ function processHalftone() {
       const r = data[index];
       const g = data[index + 1];
       const b = data[index + 2];
+      const a = data[index + 3]; // Canal alfa (transparencia)
 
+      // Si el píxel es totalmente transparente, lo ignoramos
+      if (a < 20) continue;
+
+      // Calcular brillo (Luminancia)
       const brightness = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+      
+      // Si trabajas con fondo negro e impresión en tinta blanca (efecto inverso):
+      // Si el fondo es negro, las zonas oscuras de la imagen generan puntos (o viceversa).
+      // Aquí usamos la lógica estándar: zonas oscuras = puntos grandes.
       const radius = (1 - brightness) * (gridSpacing / 2);
 
-      if (radius > 0.5) {
+      if (radius > 0.4) {
         ctx.beginPath();
         if (shape === 'circle') {
           ctx.arc(x + gridSpacing / 2, y + gridSpacing / 2, radius, 0, Math.PI * 2);
@@ -81,6 +102,14 @@ function processHalftone() {
   }
 }
 
+// Función para cambiar colores desde la interfaz si quieres agregarlos después
+function updateColors(newDotColor, newBgColor) {
+  dotColor = newDotColor;
+  bgColor = newBgColor;
+  if (loadedImage) processHalftone();
+}
+
+// Funciones para exportar a 300 DPI exactos con metadatos PNG (pHYs)
 function setPngDpi(dataUrl, dpi = 300) {
   const ppm = Math.round(dpi / 0.0254);
   const base64 = dataUrl.split(',')[1];
