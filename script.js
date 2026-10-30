@@ -225,22 +225,22 @@ function processHalftone() {
   // 1. Limpiamos el canvas principal
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  // 2. Dibujamos la imagen base limpia y sólida
+  // 2. Dibujamos la imagen original base con sus colores sólidos y limpios
   ctx.drawImage(sourceToProcess, 0, 0);
 
-  // 3. Eliminación limpia de fondo negro (cero semitransparencias: alfa 0 o alfa 255)
+  // 3. Eliminación absoluta del fondo negro puro (transparencia limpia sin semitransparencias)
   const imgDataLayer = ctx.getImageData(0, 0, canvas.width, canvas.height);
   const pxData = imgDataLayer.data;
   for (let i = 0; i < pxData.length; i += 4) {
     if (pxData[i] < 20 && pxData[i+1] < 20 && pxData[i+2] < 20) {
-      pxData[i + 3] = 0; // Transparente absoluto
+      pxData[i + 3] = 0; 
     } else if (pxData[i + 3] > 20) {
-      pxData[i + 3] = 255; // Opaco absoluto para evitar bordes difusos
+      pxData[i + 3] = 255; 
     }
   }
   ctx.putImageData(imgDataLayer, 0, 0);
 
-  // 4. Canvas temporal para lectura de niveles de luz
+  // 4. Canvas temporal para lectura de niveles de luz originales
   const tempCanvas = document.createElement('canvas');
   tempCanvas.width = sourceToProcess.width;
   tempCanvas.height = sourceToProcess.height;
@@ -256,9 +256,10 @@ function processHalftone() {
   const shape = dotShapeSelect.value;
   const lpi = parseInt(screenLpiInput.value, 10);
   
-  const cellSize = Math.max(3, Math.round(180 / lpi));
+  // Celdas calibradas para que los puntos sean muy finos, sutiles y fluidos
+  const cellSize = Math.max(3, Math.round(140 / lpi));
 
-  // 5. Aplicación de tramado fluido y orgánico
+  // 5. Aplicación de micro-puntos exclusivamente en sombras muy selectas (evitando ojos y zonas negras profundas)
   for (let y = 0; y < canvas.height; y += cellSize) {
     for (let x = 0; x < canvas.width; x += cellSize) {
       const cx = x + cellSize / 2;
@@ -272,7 +273,8 @@ function processHalftone() {
 
       let r = data[idx], g = data[idx+1], b = data[idx+2];
 
-      if (r < 20 && g < 20 && b < 20) continue;
+      // Omitir zonas completamente negras (como los ojos profundos o el fondo) para que queden limpias
+      if (r < 25 && g < 25 && b < 25) continue;
 
       r = adjustChannel(r, blackPoint, whitePoint, gamma);
       g = adjustChannel(g, blackPoint, whitePoint, gamma);
@@ -284,11 +286,12 @@ function processHalftone() {
 
       let luma = 0.299 * r + 0.587 * g + 0.114 * b;
       
+      // Multiplicador de radio reducido para evitar puntos gordos o grotescos
       let darkness = 1 - (luma / 255);
-      let radius = darkness * (cellSize * 0.75);
+      let radius = darkness * (cellSize * 0.55);
 
-      // Rango calibrado para preservar colores vivos sin oscurecer artificialmente
-      if (radius > 0.4 && luma < 95) {
+      // Rango estrecho y sutil: solo actúa en transiciones suaves, dejando los tonos medios y claros completamente sólidos
+      if (radius > 0.3 && luma < 75 && luma > 25) {
         ctx.save();
         ctx.translate(cx, cy);
         ctx.rotate(angleRad);
@@ -300,7 +303,7 @@ function processHalftone() {
           ctx.arc(0, 0, radius, 0, Math.PI * 2);
           ctx.fill();
         } else if (shape === 'line') {
-          const lineWidth = radius * 1.4;
+          const lineWidth = radius * 1.2;
           ctx.fillRect(-cellSize / 2, -lineWidth / 2, cellSize, lineWidth);
         }
         ctx.restore();
