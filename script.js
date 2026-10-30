@@ -250,8 +250,8 @@ function processHalftone() {
   const imgDataLayer = ctx.getImageData(0, 0, canvas.width, canvas.height);
   const pxData = imgDataLayer.data;
   for (let i = 0; i < pxData.length; i += 4) {
-    if (pxData[i] < 10 && pxData[i+1] < 10 && pxData[i+2] < 10) {
-      pxData[i + 3] = 0; 
+    if (pxData[i] < 15 && pxData[i+1] < 15 && pxData[i+2] < 15) {
+      pxData[i + 3] = 0; // Limpia el fondo negro absoluto
     } else if (pxData[i + 3] > 20) {
       pxData[i + 3] = 255; 
     }
@@ -277,7 +277,8 @@ function processHalftone() {
   const cellSize = Math.max(3, Math.round(180 / lpi));
 
   if (currentMethod === 'stochastic_fade') {
-    // --- MODO 1: DIFUMINADO ORGÁNICO ---
+    // --- MODO 1: DIFUMINADO ORGÁNICO (Limpio en sombras) ---
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
     for (let y = 0; y < canvas.height; y += cellSize) {
       for (let x = 0; x < canvas.width; x += cellSize) {
         const jitterX = (Math.random() - 0.5) * (cellSize * 0.7);
@@ -293,7 +294,7 @@ function processHalftone() {
         if (data[idx + 3] < 20) continue;
 
         let r = data[idx], g = data[idx+1], b = data[idx+2];
-        if (r < 10 && g < 10 && b < 10) continue;
+        if (r < 20 && g < 20 && b < 20) continue; // Omite fondo negro para que quede limpio
 
         r = adjustChannel(r, blackPoint, whitePoint, gamma);
         g = adjustChannel(g, blackPoint, whitePoint, gamma);
@@ -305,15 +306,15 @@ function processHalftone() {
 
         let luma = 0.299 * r + 0.587 * g + 0.114 * b;
         
-        if (luma > 15 && luma < 90) {
-          let transitionFactor = (luma - 15) / 75; 
-          let radius = transitionFactor * (cellSize * 0.35);
+        if (luma > 20 && luma < 230) {
+          let transitionFactor = (luma - 20) / 210; 
+          let radius = transitionFactor * (cellSize * 0.4);
 
           if (radius > 0.15) {
             ctx.save();
             ctx.translate(cx, cy);
             ctx.rotate(angleRad);
-            ctx.fillStyle = isInverted ? '#ffffff' : '#000000';
+            ctx.fillStyle = isInverted ? `rgb(${r},${g},${b})` : '#000000';
 
             ctx.beginPath();
             if (shape === 'round') {
@@ -329,87 +330,46 @@ function processHalftone() {
       }
     }
   } else if (currentMethod === 'diffusion') {
-    // --- MODO 2: DIFUSIÓN A COLOR (Floyd-Steinberg preservando color) ---
+    // --- MODO 2: DIFUSIÓN A COLOR (Filtro estricto para evitar ruido en fondo negro) ---
     const imgW = canvas.width;
     const imgH = canvas.height;
     
-    const rBuffer = new Float32Array(imgW * imgH);
-    const gBuffer = new Float32Array(imgW * imgH);
-    const bBuffer = new Float32Array(imgW * imgH);
-
-    for (let i = 0; i < data.length; i += 4) {
-      const idx = i / 4;
-      if (data[i+3] < 20) {
-        rBuffer[idx] = 255;
-        gBuffer[idx] = 255;
-        bBuffer[idx] = 255;
-      } else {
-        let r = adjustChannel(data[i], blackPoint, whitePoint, gamma);
-        let g = adjustChannel(data[i+1], blackPoint, whitePoint, gamma);
-        let b = adjustChannel(data[i+2], blackPoint, whitePoint, gamma);
-        if (isInverted) { r = 255 - r; g = 255 - g; b = 255 - b; }
-        rBuffer[idx] = r;
-        gBuffer[idx] = g;
-        bBuffer[idx] = b;
-      }
-    }
-
     const outputData = ctx.createImageData(imgW, imgH);
     const outPx = outputData.data;
 
     for (let y = 0; y < imgH; y++) {
       for (let x = 0; x < imgW; x++) {
-        const idx = y * imgW + x;
-        const outIdx = idx * 4;
+        const idx = (y * imgW + x) * 4;
 
-        if (data[outIdx + 3] < 20 || (data[outIdx] < 15 && data[outIdx + 1] < 15 && data[outIdx + 2] < 15)) {
-          outPx[outIdx + 3] = 0;
+        // Si es fondo negro o transparente, lo dejamos completamente limpio (sin ruido de puntos)
+        if (data[idx + 3] < 20 || (data[idx] < 25 && data[idx + 1] < 25 && data[idx + 2] < 25)) {
+          outPx[idx + 3] = 0;
           continue;
         }
 
-        const oldR = rBuffer[idx];
-        const newR = oldR < 128 ? 0 : 255;
-        const errR = (oldR - newR) / 16;
-
-        const oldG = gBuffer[idx];
-        const newG = oldG < 128 ? 0 : 255;
-        const errG = (oldG - newG) / 16;
-
-        const oldB = bBuffer[idx];
-        const newB = oldB < 128 ? 0 : 255;
-        const errB = (oldB - newB) / 16;
-
-        outPx[outIdx] = isInverted ? 255 - newR : newR;
-        outPx[outIdx + 1] = isInverted ? 255 - newG : newG;
-        outPx[outIdx + 2] = isInverted ? 255 - newB : newB;
-        outPx[outIdx + 3] = 255;
-
-        if (x + 1 < imgW) {
-          rBuffer[idx + 1] += errR * 7;
-          gBuffer[idx + 1] += errG * 7;
-          bBuffer[idx + 1] += errB * 7;
+        let r = adjustChannel(data[idx], blackPoint, whitePoint, gamma);
+        let g = adjustChannel(data[idx+1], blackPoint, whitePoint, gamma);
+        let b = adjustChannel(data[idx+2], blackPoint, whitePoint, gamma);
+        
+        if (isInverted) {
+          r = 255 - r; g = 255 - g; b = 255 - b;
         }
-        if (y + 1 < imgH) {
-          if (x > 0) {
-            rBuffer[(y + 1) * imgW + x - 1] += errR * 3;
-            gBuffer[(y + 1) * imgW + x - 1] += errG * 3;
-            bBuffer[(y + 1) * imgW + x - 1] += errB * 3;
-          }
-          rBuffer[(y + 1) * imgW + x] += errR * 5;
-          gBuffer[(y + 1) * imgW + x] += errG * 5;
-          bBuffer[(y + 1) * imgW + x] += errB * 5;
-          if (x + 1 < imgW) {
-            rBuffer[(y + 1) * imgW + x + 1] += errR * 1;
-            gBuffer[(y + 1) * imgW + x + 1] += errG * 1;
-            bBuffer[(y + 1) * imgW + x + 1] += errB * 1;
-          }
-        }
+
+        // Aplicamos un patrón de trama dispersa limpio que respeta los colores originales sin generar nieve en el fondo
+        const noise = (Math.sin(x * 12.9898 + y * 78.233) * 43758.5453) % 1;
+        const threshold = noise * 40;
+
+        outPx[idx] = r > threshold ? r : 0;
+        outPx[idx + 1] = g > threshold ? g : 0;
+        outPx[idx + 2] = b > threshold ? b : 0;
+        outPx[idx + 3] = 255;
       }
     }
     ctx.putImageData(outputData, 0, 0);
 
   } else {
     // --- MODO 3: TRAMADO ESTÁNDAR CLÁSICO ---
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
     for (let y = 0; y < canvas.height; y += cellSize) {
       for (let x = 0; x < canvas.width; x += cellSize) {
         const cx = x + cellSize / 2;
@@ -422,7 +382,7 @@ function processHalftone() {
         if (data[idx + 3] < 20) continue;
 
         let r = data[idx], g = data[idx+1], b = data[idx+2];
-        if (r < 20 && g < 20 && b < 20) continue;
+        if (r < 25 && g < 25 && b < 25) continue; // Omite sombras oscuras para mantener el fondo limpio
 
         r = adjustChannel(r, blackPoint, whitePoint, gamma);
         g = adjustChannel(g, blackPoint, whitePoint, gamma);
@@ -436,7 +396,7 @@ function processHalftone() {
         let darkness = 1 - (luma / 255);
         let radius = darkness * (cellSize * 0.85);
 
-        if (radius > 0.4 && luma < 110) {
+        if (radius > 0.4 && luma < 230) {
           ctx.save();
           ctx.translate(cx, cy);
           ctx.rotate(angleRad);
