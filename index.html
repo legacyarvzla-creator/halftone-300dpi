@@ -12,20 +12,17 @@
     <!-- Logo y Título Legacy -->
     <div class="brand-header">
       <img src="LEGACY%20AR.png" alt="Legacy Logo" class="logo-img">
-      <h1>SEMITONOS LEGACY AR</h1>
+      <h1>SEMITONOS LEGACY</h1>
       <p class="subtitle">Conversor profesional de semitonos y difusión a 300 DPI para DTF y Serigrafía</p>
     </div>
     
     <div class="controls">
-      <!-- Seleccionar Imagen -->
-      <div class="control-group">
-  <label for="methodSelect">Método de Tramado:</label>
-  <select id="methodSelect">
-    <option value="standard">Tramado Estándar (Rejilla)</option>
-    <option value="stochastic_fade">Difuminado Orgánico (DTF sin malla)</option>
-    <option value="diffusion">Difusión (Textura tipo grano / Floyd-Steinberg)</option>
-  </select>
-</div>
+      <!-- 1. SELECCIONAR IMAGEN (Asegurado arriba del todo) -->
+      <div class="control-group" style="grid-column: 1 / -1; background: #1f2833; padding: 12px; border-radius: 8px; border: 1px solid #45a29e;">
+        <label for="imageInput" style="font-weight: bold; color: #66fcf1; margin-bottom: 5px; display: block;">📂 Seleccionar Imagen:</label>
+        <input type="file" id="imageInput" accept="image/*" style="width: 100%; color: #fff;">
+      </div>
+
       <!-- Modo de Color -->
       <div class="control-group">
         <label for="colorModeSelect">Modo de Color:</label>
@@ -41,6 +38,7 @@
         <select id="methodSelect">
           <option value="standard">Tramado Estándar (Rejilla)</option>
           <option value="stochastic_fade">Difuminado Orgánico (DTF sin malla)</option>
+          <option value="diffusion">Difusión (Textura tipo grano / Floyd-Steinberg)</option>
         </select>
       </div>
 
@@ -146,10 +144,21 @@
       </div>
     </div>
 
+    <!-- Controles de Zoom para la Previsualización -->
+    <div style="display: flex; justify-content: space-between; align-items: center; margin: 15px 0 5px 0; background: #1f2833; padding: 10px; border-radius: 6px;">
+      <span style="color: #66fcf1; font-weight: bold; font-size: 14px;">🔍 Zoom de Vista Previa: <span id="zoomVal">100%</span></span>
+      <div style="display: flex; gap: 8px;">
+        <button type="button" id="zoomOutBtn" style="padding: 5px 12px; background: #0b0c10; color: #fff; border: 1px solid #45a29e; border-radius: 4px; cursor: pointer;">Alejar (-)</button>
+        <button type="button" id="zoomResetBtn" style="padding: 5px 12px; background: #0b0c10; color: #fff; border: 1px solid #45a29e; border-radius: 4px; cursor: pointer;">1:1</button>
+        <button type="button" id="zoomInBtn" style="padding: 5px 12px; background: #0b0c10; color: #fff; border: 1px solid #45a29e; border-radius: 4px; cursor: pointer;">Acercar (+)</button>
+      </div>
+    </div>
+
     <button id="downloadBtn" class="btn" disabled>Descargar Imagen (300 DPI)</button>
 
-    <div class="preview-area">
-      <canvas id="canvas"></canvas>
+    <!-- Área de Vista Previa con Scroll -->
+    <div class="preview-area" style="width: 100%; height: 500px; overflow: auto; background: #0b0c10; border: 2px dashed #45a29e; border-radius: 8px; position: relative; display: flex; align-items: center; justify-content: center;">
+      <canvas id="canvas" style="transform-origin: center center; display: block;"></canvas>
     </div>
   </div>
 
