@@ -422,11 +422,30 @@ for (let n = 0; n < 256; n++) {
 }
 
 downloadBtn.addEventListener('click', () => {
-  const originalDataUrl = canvas.toDataURL('image/png');
-  const dpiDataUrl = setPngDpi(originalDataUrl, 300);
+  if (!loadedImage) return;
+  
+  try {
+    // Mostramos un aviso de que está procesando por si la imagen es pesada
+    downloadBtn.textContent = 'Generando archivo...';
+    downloadBtn.disabled = true;
 
-  const link = document.createElement('a');
-  link.download = 'semitono_color_300dpi.png';
-  link.href = dpiDataUrl;
-  link.click();
+    setTimeout(() => {
+      const originalDataUrl = canvas.toDataURL('image/png');
+      const dpiDataUrl = setPngDpi(originalDataUrl, 300);
+
+      const link = document.createElement('a');
+      link.download = 'semitono_300dpi.png';
+      link.href = dpiDataUrl;
+      link.click();
+
+      downloadBtn.textContent = 'Descargar Imagen (300 DPI)';
+      downloadBtn.disabled = false;
+    }, 100);
+
+  } catch (error) {
+    console.error("Error al descargar:", error);
+    alert("La imagen es demasiado grande para la memoria del navegador. Prueba con una imagen un poco más ligera o reduce sus dimensiones antes de subirla.");
+    downloadBtn.textContent = 'Descargar Imagen (300 DPI)';
+    downloadBtn.disabled = false;
+  }
 });
