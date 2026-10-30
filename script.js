@@ -234,6 +234,101 @@ function processHalftone() {
   canvas.width = sourceToProcess.width;
   canvas.height = sourceToProcess.height;
 
+  // Dibujamos la imagen original de base
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(sourceToProcess, 0, 0);
+
+  const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  const data = imageData.data;
+
+  const blackPoint = parseInt(blackPointInput.value, 10);
+  const whitePoint = parseInt(whitePointInput.value, 10);
+  const gamma = parseFloat(gammaInput.value);
+  const isInverted = invertToggle.checked;
+  const isColorMode = colorModeSelect.value === 'color';
+  const angleRad = (parseFloat(screenAngleInput.value) * Math.PI) / 180;
+  const shape = dotShapeSelect.value;
+  const lpi = parseInt(screenLpiInput.value, 10);
+  const cellSize = Math.max(2, Math.round(150 / lpi));
+
+  // Recorremos por celdas
+  for (let y = 0; y < canvas.height; y += cellSize) {
+    for (let x = 0; x < canvas.width; x += cellSize) {
+      const cx = x + cellSize / 2;
+      const cy = y + cellSize / 2;
+
+      const sampleX = Math.min(Math.max(Math.floor(cx), 0), canvas.width - 1);
+      const sampleY = Math.min(Math.max(Math.floor(cy), 0), canvas.height - 1);
+      const idx = (sampleY * canvas.width + sampleX) * 4;
+
+      if (data[idx + 3] < 20) continue;
+
+      let r = data[idx], g = data[idx+1], b = data[idx+2];
+
+      // SI ES NEGRO PURO O FONDO OSCURO: Lo borramos por completo (transparente)
+      if (r < 25 && g < 25 && b < 25) {
+        ctx.clearRect(x, y, cellSize, cellSize);
+        continue;
+      }
+
+      // Filtro de color si está activo
+      if (activeColorFilter !== 'all') {
+        if (!isTargetColor(r, g, b, activeColorFilter)) continue;
+      }
+
+      r = adjustChannel(r, blackPoint, whitePoint, gamma);
+      g = adjustChannel(g, blackPoint, whitePoint, gamma);
+      b = adjustChannel(b, blackPoint, whitePoint, gamma);
+
+      if (isInverted) {
+        r = 255 - r; g = 255 - g; b = 255 - b;
+      }
+
+      let luma = 0.299 * r + 0.587 * g + 0.114 * b;
+
+      // APLICAR TRAMADO SOLO EN ZONAS DE DEGRADÉ
+      if (luma > 25 && luma < 230) {
+        let brightness = luma / 255;
+        let radius = (1 - brightness) * (cellSize / 2);
+
+        if (radius > 0.3) {
+          // Limpiamos el fondo de esa celda antes de poner el punto
+          ctx.save();
+          ctx.translate(cx, cy);
+          ctx.rotate(angleRad);
+          ctx.fillStyle = '#ffffff'; 
+          ctx.beginPath();
+          if (shape === 'round') {
+            ctx.arc(0, 0, radius + 0.5, 0, Math.PI * 2);
+          } else {
+            const lineWidth = radius * 1.8;
+            ctx.rect(-cellSize / 2, -lineWidth / 2, cellSize, lineWidth);
+          }
+          ctx.fill();
+          ctx.restore();
+
+          // Dibujamos el punto del semitono
+          ctx.save();
+          ctx.translate(cx, cy);
+          ctx.rotate(angleRad);
+          ctx.fillStyle = isColorMode ? `rgb(${Math.round(r)}, ${Math.round(g)}, ${Math.round(b)})` : (isInverted ? '#ffffff' : '#000000');
+          ctx.beginPath();
+          if (shape === 'round') {
+            ctx.arc(0, 0, radius, 0, Math.PI * 2);
+            ctx.fill();
+          } else if (shape === 'line') {
+            const lineWidth = radius * 1.8;
+            ctx.fillRect(-cellSize / 2, -lineWidth / 2, cellSize, lineWidth);
+          }
+          ctx.restore();
+        }
+      }
+    }
+  }
+}
+  canvas.width = sourceToProcess.width;
+  canvas.height = sourceToProcess.height;
+
   // Primero dibujamos la imagen original de fondo para mantener intactos los colores que NO llevan semitono
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.drawImage(sourceToProcess, 0, 0);
