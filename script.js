@@ -251,7 +251,7 @@ function processHalftone() {
   const pxData = imgDataLayer.data;
   for (let i = 0; i < pxData.length; i += 4) {
     if (pxData[i] < 15 && pxData[i+1] < 15 && pxData[i+2] < 15) {
-      pxData[i + 3] = 0; // Limpia el fondo negro absoluto
+      pxData[i + 3] = 0; 
     } else if (pxData[i + 3] > 20) {
       pxData[i + 3] = 255; 
     }
@@ -277,7 +277,7 @@ function processHalftone() {
   const cellSize = Math.max(3, Math.round(180 / lpi));
 
   if (currentMethod === 'stochastic_fade') {
-    // --- MODO 1: DIFUMINADO ORGÁNICO (Limpio en sombras) ---
+    // --- MODO 1: DIFUMINADO ORGÁNICO ---
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     for (let y = 0; y < canvas.height; y += cellSize) {
       for (let x = 0; x < canvas.width; x += cellSize) {
@@ -294,7 +294,7 @@ function processHalftone() {
         if (data[idx + 3] < 20) continue;
 
         let r = data[idx], g = data[idx+1], b = data[idx+2];
-        if (r < 20 && g < 20 && b < 20) continue; // Omite fondo negro para que quede limpio
+        if (r < 20 && g < 20 && b < 20) continue;
 
         r = adjustChannel(r, blackPoint, whitePoint, gamma);
         g = adjustChannel(g, blackPoint, whitePoint, gamma);
@@ -314,7 +314,7 @@ function processHalftone() {
             ctx.save();
             ctx.translate(cx, cy);
             ctx.rotate(angleRad);
-            ctx.fillStyle = isInverted ? `rgb(${r},${g},${b})` : '#000000';
+            ctx.fillStyle = `rgb(${r},${g},${b})`;
 
             ctx.beginPath();
             if (shape === 'round') {
@@ -330,7 +330,7 @@ function processHalftone() {
       }
     }
   } else if (currentMethod === 'diffusion') {
-    // --- MODO 2: DIFUSIÓN A COLOR (Filtro estricto para evitar ruido en fondo negro) ---
+    // --- MODO 2: DIFUSIÓN A COLOR ---
     const imgW = canvas.width;
     const imgH = canvas.height;
     
@@ -341,7 +341,6 @@ function processHalftone() {
       for (let x = 0; x < imgW; x++) {
         const idx = (y * imgW + x) * 4;
 
-        // Si es fondo negro o transparente, lo dejamos completamente limpio (sin ruido de puntos)
         if (data[idx + 3] < 20 || (data[idx] < 25 && data[idx + 1] < 25 && data[idx + 2] < 25)) {
           outPx[idx + 3] = 0;
           continue;
@@ -355,7 +354,6 @@ function processHalftone() {
           r = 255 - r; g = 255 - g; b = 255 - b;
         }
 
-        // Aplicamos un patrón de trama dispersa limpio que respeta los colores originales sin generar nieve en el fondo
         const noise = (Math.sin(x * 12.9898 + y * 78.233) * 43758.5453) % 1;
         const threshold = noise * 40;
 
@@ -368,7 +366,7 @@ function processHalftone() {
     ctx.putImageData(outputData, 0, 0);
 
   } else {
-    // --- MODO 3: TRAMADO ESTÁNDAR CLÁSICO ---
+    // --- MODO 3: TRAMADO ESTÁNDAR A COLOR (Puntos limpios con el color original) ---
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     for (let y = 0; y < canvas.height; y += cellSize) {
       for (let x = 0; x < canvas.width; x += cellSize) {
@@ -382,7 +380,7 @@ function processHalftone() {
         if (data[idx + 3] < 20) continue;
 
         let r = data[idx], g = data[idx+1], b = data[idx+2];
-        if (r < 25 && g < 25 && b < 25) continue; // Omite sombras oscuras para mantener el fondo limpio
+        if (r < 25 && g < 25 && b < 25) continue; // Mantiene el fondo negro limpio
 
         r = adjustChannel(r, blackPoint, whitePoint, gamma);
         g = adjustChannel(g, blackPoint, whitePoint, gamma);
@@ -400,7 +398,8 @@ function processHalftone() {
           ctx.save();
           ctx.translate(cx, cy);
           ctx.rotate(angleRad);
-          ctx.fillStyle = isInverted ? '#ffffff' : '#000000';
+          // Aquí aplicamos el color real de la imagen en lugar de negro fijo
+          ctx.fillStyle = `rgb(${r},${g},${b})`;
 
           ctx.beginPath();
           if (shape === 'round') {
