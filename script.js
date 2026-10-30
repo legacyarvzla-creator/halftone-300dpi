@@ -185,7 +185,6 @@ function processHalftone() {
   const whitePoint = parseInt(whitePointInput.value, 10);
   const gamma = parseFloat(gammaInput.value);
 
-  // Pre-procesar niveles de brillo para cada píxel
   const width = canvas.width;
   const height = canvas.height;
   const processedPixels = new Float32Array(width * height);
@@ -197,7 +196,7 @@ function processHalftone() {
     const a = data[i+3];
 
     if (a < 20) {
-      processedPixels[i / 4] = 255; // Fondo transparente o blanco
+      processedPixels[i / 4] = 255;
       continue;
     }
 
@@ -222,10 +221,9 @@ function processHalftone() {
 
   const method = methodSelect.value;
   const lpi = parseInt(screenLpiInput.value, 10);
-  const cellSize = Math.max(2, Math.round(150 / lpi)); // Convertir LPI a tamaño de celda en píxeles aproximado
+  const cellSize = Math.max(2, Math.round(150 / lpi));
 
   if (method === 'diffusion') {
-    // Difusión de error Floyd-Steinberg
     const imgOut = ctx.createImageData(width, height);
     const outData = imgOut.data;
     const buffer = new Float32Array(processedPixels);
@@ -255,16 +253,11 @@ function processHalftone() {
     ctx.putImageData(imgOut, 0, 0);
 
   } else {
-    // Método Halftone clásico con soporte de ángulo y formas (round / line)
     const angleRad = (parseFloat(screenAngleInput.value) * Math.PI) / 180;
-    const cos = Math.cos(angleRad);
-    const sin = Math.sin(angleRad);
     const shape = dotShapeSelect.value;
 
     for (let y = 0; y < height; y += cellSize) {
       for (let x = 0; x < width; x += cellSize) {
-        
-        // Coordenadas del centro de la celda
         const cx = x + cellSize / 2;
         const cy = y + cellSize / 2;
 
@@ -354,7 +347,7 @@ downloadBtn.addEventListener('click', () => {
   const dpiDataUrl = setPngDpi(originalDataUrl, 300);
 
   const link = document.createElement('a');
-  link.download = 'semitono_completo_300dpi.png';
+  link.download = 'semitono_300dpi.png';
   link.href = dpiDataUrl;
   link.click();
 });
