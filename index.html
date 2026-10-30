@@ -1,83 +1,79 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Conversor de Semitonos 300 DPI</title>
-  <link rel="stylesheet" href="style.css">
-</head>
-<body>
-
-  <div class="container">
-    <h1>Conversor de Semitonos (300 DPI)</h1>
-    
-    <div class="controls">
-      <div class="control-group">
-        <label for="imageInput">Seleccionar Imagen:</label>
-        <input type="file" id="imageInput" accept="image/*">
-      </div>
-      
-      <div class="control-group">
-        <label for="dotSize">Tamaño del punto (<span id="dotValue">8</span>px):</label>
-        <input type="range" id="dotSize" min="3" max="30" value="8">
-      </div>
-
-      <div class="control-group">
-        <label for="dotShape">Forma del punto:</label>
-        <select id="dotShape">
-          <option value="circle">Círculo</option>
-          <option value="square">Cuadrado</option>
-        </select>
-      </div>
-    </div>
-    <!-- Opción de Recorte Automático de Fondo Negro -->
-<div class="control-group" style="grid-column: 1 / -1; border-top: 1px solid #eee; padding-top: 10px; margin-top: 5px;">
-  <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
-    <input type="checkbox" id="cropBgToggle"> 
-    <strong>Recortar fondo negro automáticamente</strong>
-  </label>
-</div>
-
-<div class="control-group" id="cropThresholdGroup" style="opacity: 0.5; pointer-events: none;">
-  <label for="cropThreshold">Umbral de recorte (0 - 255): <span id="cropThresholdValue">20</span></label>
-  <input type="range" id="cropThreshold" min="0" max="255" value="20">
-</div>
-    <!-- Sección de Curva de Tono / Niveles -->
-<div class="control-group" style="grid-column: 1 / -1; border-top: 1px solid #eee; padding-top: 15px; margin-top: 5px;">
-  <strong style="margin-bottom: 8px; display: block; color: #2c3e50;">Curva de Tono (Niveles)</strong>
-</div>
-
-<div class="control-group">
-  <label for="blackPoint">Punto Negro: <span id="blackPointVal">0</span></label>
-  <div style="display: flex; gap: 8px; align-items: center;">
-    <input type="range" id="blackPoint" min="0" max="255" value="0" style="flex: 1;">
-    <button type="button" onclick="resetInput('blackPoint', 0)" style="padding: 2px 6px; cursor: pointer;">↺</button>
+<div class="controls">
+  <!-- Método -->
+  <div class="control-group">
+    <label for="methodSelect">Method:</label>
+    <select id="methodSelect">
+      <option value="halftone">halftone (Classic dot screen)</option>
+      <option value="diffusion">diffusion (Floyd-Steinberg grain)</option>
+    </select>
   </div>
-</div>
 
-<div class="control-group">
-  <label for="whitePoint">Punto Blanco: <span id="whitePointVal">255</span></label>
-  <div style="display: flex; gap: 8px; align-items: center;">
-    <input type="range" id="whitePoint" min="0" max="255" value="255" style="flex: 1;">
-    <button type="button" onclick="resetInput('whitePoint', 255)" style="padding: 2px 6px; cursor: pointer;">↺</button>
-  </div>
-</div>
-
-<div class="control-group">
-  <label for="gammaInput">Gamma: <span id="gammaVal">1.00</span></label>
-  <div style="display: flex; gap: 8px; align-items: center;">
-    <input type="range" id="gammaInput" min="0.1" max="3.0" step="0.05" value="1.0" style="flex: 1;">
-    <button type="button" onclick="resetInput('gammaInput', 1.0)" style="padding: 2px 6px; cursor: pointer;">↺</button>
-  </div>
-</div>
-
-    <button id="downloadBtn" class="btn" disabled>Descargar Imagen (300 DPI)</button>
-
-    <div class="preview-area">
-      <canvas id="canvas"></canvas>
+  <!-- Screen Frequency (LPI) -->
+  <div class="control-group">
+    <label for="screenLpi">Screen Frequency (LPI): <span id="lpiVal">35</span></label>
+    <div style="display: flex; gap: 8px; align-items: center;">
+      <input type="range" id="screenLpi" min="10" max="80" value="35" style="flex: 1;">
+      <button type="button" onclick="resetInput('screenLpi', 35)" style="padding: 2px 6px; cursor: pointer;">↺</button>
     </div>
   </div>
 
-  <script src="script.js"></script>
-</body>
-</html>
+  <!-- Screen Angle -->
+  <div class="control-group">
+    <label for="screenAngle">Screen Angle (°): <span id="angleVal">45</span></label>
+    <div style="display: flex; gap: 8px; align-items: center;">
+      <input type="range" id="screenAngle" min="0" max="90" value="45" style="flex: 1;">
+      <button type="button" onclick="resetInput('screenAngle', 45)" style="padding: 2px 6px; cursor: pointer;">↺</button>
+    </div>
+  </div>
+
+  <!-- Dot Shape -->
+  <div class="control-group">
+    <label for="dotShape">Dot Shape:</label>
+    <select id="dotShape">
+      <option value="round">round (Circular)</option>
+      <option value="line">line (Parallel-line)</option>
+    </select>
+  </div>
+
+  <!-- Recorte Automático -->
+  <div class="control-group" style="grid-column: 1 / -1; border-top: 1px solid #eee; padding-top: 10px; margin-top: 5px;">
+    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+      <input type="checkbox" id="cropBgToggle"> 
+      <strong>Recortar fondo negro automáticamente</strong>
+    </label>
+  </div>
+
+  <div class="control-group" id="cropThresholdGroup" style="opacity: 0.5; pointer-events: none;">
+    <label for="cropThreshold">Umbral de recorte (0 - 255): <span id="cropThresholdValue">20</span></label>
+    <input type="range" id="cropThreshold" min="0" max="255" value="20">
+  </div>
+
+  <!-- Curva de Tono (Niveles) -->
+  <div class="control-group" style="grid-column: 1 / -1; border-top: 1px solid #eee; padding-top: 15px; margin-top: 5px;">
+    <strong style="margin-bottom: 8px; display: block; color: #2c3e50;">Curva de Tono (Niveles)</strong>
+  </div>
+
+  <div class="control-group">
+    <label for="blackPoint">Punto Negro: <span id="blackPointVal">0</span></label>
+    <div style="display: flex; gap: 8px; align-items: center;">
+      <input type="range" id="blackPoint" min="0" max="255" value="0" style="flex: 1;">
+      <button type="button" onclick="resetInput('blackPoint', 0)" style="padding: 2px 6px; cursor: pointer;">↺</button>
+    </div>
+  </div>
+
+  <div class="control-group">
+    <label for="whitePoint">Punto Blanco: <span id="whitePointVal">255</span></label>
+    <div style="display: flex; gap: 8px; align-items: center;">
+      <input type="range" id="whitePoint" min="0" max="255" value="255" style="flex: 1;">
+      <button type="button" onclick="resetInput('whitePoint', 255)" style="padding: 2px 6px; cursor: pointer;">↺</button>
+    </div>
+  </div>
+
+  <div class="control-group">
+    <label for="gammaInput">Gamma: <span id="gammaVal">1.00</span></label>
+    <div style="display: flex; gap: 8px; align-items: center;">
+      <input type="range" id="gammaInput" min="0.1" max="3.0" step="0.05" value="1.0" style="flex: 1;">
+      <button type="button" onclick="resetInput('gammaInput', 1.0)" style="padding: 2px 6px; cursor: pointer;">↺</button>
+    </div>
+  </div>
+</div>
