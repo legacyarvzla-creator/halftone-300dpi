@@ -96,8 +96,10 @@ if (imageInput) {
         loadedImage = img;
         canvas.width = img.width;
         canvas.height = img.height;
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.drawImage(img, 0, 0);
+        if (ctx) {
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          ctx.drawImage(img, 0, 0);
+        }
 
         processHalftone();
         if (downloadBtn) downloadBtn.disabled = false;
@@ -235,7 +237,6 @@ function processHalftone() {
   const cellSize = Math.max(3, Math.round(180 / lpi));
 
   if (currentMethod === 'stochastic_fade') {
-    // --- MODO 1: DIFUMINADO ORGÁNICO (Sin malla) ---
     for (let y = 0; y < canvas.height; y += cellSize) {
       for (let x = 0; x < canvas.width; x += cellSize) {
         const jitterX = (Math.random() - 0.5) * (cellSize * 0.7);
@@ -287,7 +288,6 @@ function processHalftone() {
       }
     }
   } else if (currentMethod === 'diffusion') {
-    // --- MODO 2: DIFUSIÓN (Tipo grano / Floyd-Steinberg) ---
     const imgW = canvas.width;
     const imgH = canvas.height;
     const grayBuffer = new Float32Array(imgW * imgH);
@@ -338,7 +338,6 @@ function processHalftone() {
     ctx.putImageData(outputData, 0, 0);
 
   } else {
-    // --- MODO 3: TRAMADO ESTÁNDAR (El clásico que te gustaba) ---
     for (let y = 0; y < canvas.height; y += cellSize) {
       for (let x = 0; x < canvas.width; x += cellSize) {
         const cx = x + cellSize / 2;
