@@ -3,16 +3,36 @@ const dotSizeInput = document.getElementById('dotSize');
 const dotValue = document.getElementById('dotValue');
 const dotShapeSelect = document.getElementById('dotShape');
 const downloadBtn = document.getElementById('downloadBtn');
+
+// Nuevos elementos para el recorte
+const cropBgToggle = document.getElementById('cropBgToggle');
+const cropThresholdInput = document.getElementById('cropThreshold');
+const cropThresholdValue = document.getElementById('cropThresholdValue');
+const cropThresholdGroup = document.getElementById('cropThresholdGroup');
+
 const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d');
 
 let loadedImage = null;
+let dotColor = '#000000';
+let bgColor = '#ffffff';
 
-// Creamos controles adicionales dinámicamente si no están en el HTML, 
-// o puedes agregarlos en tu HTML. Aquí manejaremos los valores por defecto:
-let dotColor = '#000000'; // Color del punto por defecto (Negro)
-let bgColor = '#ffffff';  // Color de fondo por defecto (Blanco)
-let mode = 'bw';          // 'bw' (Blanco y Negro) o 'color' (Halftone a color CMYK/RGB)
+// Habilitar / deshabilitar el slider de umbral al marcar la casilla
+cropBgToggle.addEventListener('change', () => {
+  if (cropBgToggle.checked) {
+    cropThresholdGroup.style.opacity = '1';
+    cropThresholdGroup.style.pointerEvents = 'auto';
+  } else {
+    cropThresholdGroup.style.opacity = '0.5';
+    cropThresholdGroup.style.pointerEvents = 'none';
+  }
+  if (loadedImage) processHalftone();
+});
+
+cropThresholdInput.addEventListener('input', () => {
+  cropThresholdValue.textContent = cropThresholdInput.value;
+  if (loadedImage && cropBgToggle.checked) processHalftone();
+});
 
 imageInput.addEventListener('change', (e) => {
   const file = e.target.files[0];
@@ -40,29 +60,107 @@ dotShapeSelect.addEventListener('change', () => {
   if (loadedImage) processHalftone();
 });
 
+// Función auxiliar para recortar los bordes negros según el umbral (0 - 255)
+function getCroppedImageCanvas(img, threshold) {
+  const tempCanvas = document.createElement('canvas');
+  const tempCtx = tempCanvas.getContext('2d');
+  tempCanvas.width = img.width;
+  tempCanvas.height = img.height;
+  tempCtx.drawImage(img, 0, 0);
+
+  const imgData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
+  const data = imgData.data;
+  const width = tempCanvas.width;
+  const height = tempCanvas.height;
+
+  let top = 0, bottom = height, left = 0, right = width;
+
+  // Encontrar límite superior
+  toping: for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const idx = (y * width + x) * 4;
+      if (data[idx] > threshold || data[idx+1] > threshold || data[idx+2] > threshold) {
+        top = y;
+        break toping;
+      }
+    }
+  }
+
+  // Encontrar límite inferior
+  bottoming: for (let y = height - 1; y >= top; y--) {
+    for (let x = 0; x < width; x++) {
+      const idx = (y * width + x) * 4;
+      if (data[idx] > threshold || data[idx+1] > threshold || data[idx+2] > threshold) {
+        bottom = y + 1;
+        break bottoming;
+      }
+    }
+  }
+
+  // Encontrar límite izquierdo
+  lefting: for (let x = 0; x < width; x++) {
+    for (let y = top; y < bottom; y++) {
+      const idx = (y * width + x) * 4;
+      if (data[idx] > threshold || data[idx+1] > threshold || data[idx+2] > threshold) {
+        left = x;
+        break lefting;
+      }
+    }
+  }
+
+  // Encontrar límite derecho
+  righting: for (let x = width - 1; x >= left; x--) {
+    for (let y = top; y < bottom; y++) {
+      const idx = (y * width + x) * 4;
+      if (data[idx] > threshold || data[idx+1] > threshold || data[idx+2] > threshold) {
+        right = x + 1;
+        break righting;
+      }
+    }
+  }
+
+  const croppedWidth = right - left;
+  const croppedHeight = bottom - top;
+
+  if (croppedWidth <= 0 || croppedHeight <= 0) return img; // Si falla, devuelve la original
+
+  const croppedCanvas = document.createElement('canvas');
+  const croppedCtx = croppedCanvas.getContext('2d');
+  croppedCanvas.width = croppedWidth;
+  croppedCanvas.height = croppedHeight;
+  croppedCtx.drawImage(tempCanvas, left, top, croppedWidth, croppedHeight, 0, 0, croppedWidth, croppedHeight);
+
+  return croppedCanvas;
+}
+
 function processHalftone() {
   const gridSpacing = parseInt(dotSizeInput.value, 10);
   const shape = dotShapeSelect.value;
 
-  canvas.width = loadedImage.width;
-  canvas.height = loadedImage.height;
+  // 1. Obtener la imagen base (recortada si la opción está activa)
+  let sourceToProcess = loadedImage;
+  if (cropBgToggle.checked) {
+    const thresholdVal = parseInt(cropThresholdInput.value, 10);
+    sourceToProcess = getCroppedImageCanvas(loadedImage, thresholdVal);
+  }
 
-  // Dibujar imagen original temporalmente para leer píxeles
-  ctx.drawImage(loadedImage, 0, 0);
+  canvas.width = sourceToProcess.width;
+  canvas.height = sourceToProcess.height;
+
+  // 2. Dibujar en el canvas principal para lectura de píxeles
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(sourceToProcess, 0, 0);
+  
   const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
   const data = imageData.data;
 
-  // 1. Rellenar con el color de fondo elegido (ej: Blanco, Negro o transparente)
+  // 3. Aplicar colores de fondo y procesar semitono
   ctx.fillStyle = bgColor;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-  // 2. Establecer el color de los puntos (ej: Negro, Blanco para DTF sobre negro, o colores)
   ctx.fillStyle = dotColor;
 
-  // Dibujar la trama de semitonos
   for (let y = 0; y < canvas.height; y += gridSpacing) {
     for (let x = 0; x < canvas.width; x += gridSpacing) {
-      
       const pixelX = Math.min(x + Math.floor(gridSpacing / 2), canvas.width - 1);
       const pixelY = Math.min(y + Math.floor(gridSpacing / 2), canvas.height - 1);
       const index = (pixelY * canvas.width + pixelX) * 4;
@@ -70,17 +168,11 @@ function processHalftone() {
       const r = data[index];
       const g = data[index + 1];
       const b = data[index + 2];
-      const a = data[index + 3]; // Canal alfa (transparencia)
+      const a = data[index + 3];
 
-      // Si el píxel es totalmente transparente, lo ignoramos
       if (a < 20) continue;
 
-      // Calcular brillo (Luminancia)
       const brightness = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-      
-      // Si trabajas con fondo negro e impresión en tinta blanca (efecto inverso):
-      // Si el fondo es negro, las zonas oscuras de la imagen generan puntos (o viceversa).
-      // Aquí usamos la lógica estándar: zonas oscuras = puntos grandes.
       const radius = (1 - brightness) * (gridSpacing / 2);
 
       if (radius > 0.4) {
@@ -102,14 +194,7 @@ function processHalftone() {
   }
 }
 
-// Función para cambiar colores desde la interfaz si quieres agregarlos después
-function updateColors(newDotColor, newBgColor) {
-  dotColor = newDotColor;
-  bgColor = newBgColor;
-  if (loadedImage) processHalftone();
-}
-
-// Funciones para exportar a 300 DPI exactos con metadatos PNG (pHYs)
+// Funciones para mantener los DPI al descargar
 function setPngDpi(dataUrl, dpi = 300) {
   const ppm = Math.round(dpi / 0.0254);
   const base64 = dataUrl.split(',')[1];
@@ -169,7 +254,7 @@ downloadBtn.addEventListener('click', () => {
   const dpiDataUrl = setPngDpi(originalDataUrl, 300);
 
   const link = document.createElement('a');
-  link.download = 'semitono_300dpi.png';
+  link.download = 'semitono_recortado_300dpi.png';
   link.href = dpiDataUrl;
   link.click();
 });
