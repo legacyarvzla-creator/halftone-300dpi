@@ -212,25 +212,16 @@ function adjustChannel(val, blackPoint, whitePoint, gamma) {
   return v;
 }
 
-function filterColorPixel(r, g, b, filter) {
-  if (filter === 'all') return { r, g, b };
-
-  let keep = false;
-  if (filter === 'red') {
-    keep = (r > g + 40 && r > b + 40);
-  } else if (filter === 'green') {
-    keep = (g > r + 40 && g > b + 40);
-  } else if (filter === 'blue') {
-    keep = (b > r + 40 && b > g + 40);
-  } else if (filter === 'yellow') {
-    keep = (r > 150 && g > 150 && b < 100);
-  } else if (filter === 'pink') {
-    keep = (r > 150 && b > 120 && g < 130);
-  } else if (filter === 'white') {
-    keep = (r > 200 && g > 200 && b > 200);
-  }
-
-  return keep ? { r, g, b } : { r: 255, g: 255, b: 255 };
+function isTargetColor(r, g, b, filter) {
+  if (filter === 'all') return true;
+  if (filter === 'black') return (r < 80 && g < 80 && b < 80);
+  if (filter === 'red') return (r > g + 40 && r > b + 40);
+  if (filter === 'green') return (g > r + 40 && g > b + 40);
+  if (filter === 'blue') return (b > r + 40 && b > g + 40);
+  if (filter === 'yellow') return (r > 150 && g > 150 && b < 100);
+  if (filter === 'pink') return (r > 150 && b > 120 && g < 130);
+  if (filter === 'white') return (r > 200 && g > 200 && b > 200);
+  return false;
 }
 
 function processHalftone() {
@@ -243,11 +234,93 @@ function processHalftone() {
   canvas.width = sourceToProcess.width;
   canvas.height = sourceToProcess.height;
 
+  // Primero dibujamos la imagen original de fondo para mantener intactos los colores que NO llevan semitono
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.drawImage(sourceToProcess, 0, 0);
+
+  if (activeColorFilter !== 'all') {
+    // Si hay un filtro activo, creamos una capa temporal para tramar SOLO el color seleccionado
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = canvas.width;
+    tempCanvas.height = canvas.height;
+    const tempCtx = tempCanvas.getContext('2d', { willReadFrequently: true });
+    tempCtx.drawImage(sourceToProcess, 0, 0);
+    
+    const imgData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
+    const data = imgData.data;
+
+    // Limpiamos el canvas principal para redibujar: colores intactos de fondo + puntos de semitono encima
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(sourceToProcess, 0, 0);
+
+    const angleRad = (parseFloat(screenAngleInput.value) * Math.PI) / 180;
+    const shape = dotShapeSelect.value;
+    const lpi = parseInt(screenLpiInput.value, 10);
+    const cellSize = Math.max(2, Math.round(150 / lpi));
+    const isInverted = invertToggle.checked;
+
+    for (let y = 0; y < canvas.height; y += cellSize) {
+      for (let x = 0; x < canvas.width; x += cellSize) {
+        const cx = x + cellSize / 2;
+        const cy = y + cellSize / 2;
+
+        const sampleX = Math.min(Math.max(Math.floor(cx), 0), canvas.width - 1);
+        const sampleY = Math.min(Math.max(Math.floor(cy), 0), canvas.height - 1);
+        const idx = (sampleY * canvas.width + sampleX) * 4;
+
+        if (data[idx + 3] < 20) continue;
+
+        let r = data[idx], g = data[idx+1], b = data[idx+2];
+
+        // Verificamos si este bloque pertenece al color seleccionado
+        if (isTargetColor(r, g, b, activeColorFilter)) {
+          let luma = 0.299 * r + 0.587 * g + 0.114 * b;
+          let brightness = luma / 255;
+          let radius = (1 - brightness) * (cellSize / 2);
+
+          if (radius > 0.3) {
+            // Borramos el área sólida original debajo para reemplazarla limpiamente con el punto de semitono
+            ctx.save();
+            ctx.beginPath();
+            ctx.translate(cx, cy);
+            ctx.rotate(angleRad);
+            if (shape === 'round') {
+              ctx.arc(0, 0, radius + 0.5, 0, Math.PI * 2);
+            } else {
+              const lineWidth = radius * 1.8;
+              ctx.rect(-cellSize / 2, -lineWidth / 2, cellSize, lineWidth);
+            }
+            ctx.fillStyle = '#ffffff'; // O limpia con transparente si prefieres
+            ctx.fill();
+            ctx.restore();
+
+            // Dibujamos el punto de semitono
+            ctx.save();
+            ctx.translate(cx, cy);
+            ctx.rotate(angleRad);
+            ctx.fillStyle = isInverted ? '#ffffff' : '#000000';
+            ctx.beginPath();
+            if (shape === 'round') {
+              ctx.arc(0, 0, radius, 0, Math.PI * 2);
+              ctx.fill();
+            } else if (shape === 'line') {
+              const lineWidth = radius * 1.8;
+              ctx.fillRect(-cellSize / 2, -lineWidth / 2, cellSize, lineWidth);
+            }
+            ctx.restore();
+          }
+        }
+      }
+    }
+  } else {
+    // Si está en "Todos", procesa el tramado clásico completo
+    processStandardHalftone();
+  }
+}
+
+function processStandardHalftone() {
   const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
   const data = imageData.data;
-
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
   const blackPoint = parseInt(blackPointInput.value, 10);
@@ -255,174 +328,50 @@ function processHalftone() {
   const gamma = parseFloat(gammaInput.value);
   const isInverted = invertToggle.checked;
   const isColorMode = colorModeSelect.value === 'color';
-
-  const width = canvas.width;
-  const height = canvas.height;
-
-  const method = methodSelect.value;
+  const angleRad = (parseFloat(screenAngleInput.value) * Math.PI) / 180;
+  const shape = dotShapeSelect.value;
   const lpi = parseInt(screenLpiInput.value, 10);
   const cellSize = Math.max(2, Math.round(150 / lpi));
 
-  if (method === 'diffusion') {
-    const imgOut = ctx.createImageData(width, height);
-    const outData = imgOut.data;
+  for (let y = 0; y < canvas.height; y += cellSize) {
+    for (let x = 0; x < canvas.width; x += cellSize) {
+      const cx = x + cellSize / 2;
+      const cy = y + cellSize / 2;
 
-    const bufferR = new Float32Array(width * height);
-    const bufferG = new Float32Array(width * height);
-    const bufferB = new Float32Array(width * height);
+      const sampleX = Math.min(Math.max(Math.floor(cx), 0), canvas.width - 1);
+      const sampleY = Math.min(Math.max(Math.floor(cy), 0), canvas.height - 1);
+      const idx = (sampleY * canvas.width + sampleX) * 4;
 
-    for (let i = 0; i < data.length; i += 4) {
-      if (data[i + 3] < 20) {
-        bufferR[i / 4] = -1;
-        continue;
-      }
+      if (data[idx + 3] < 20) continue;
+      if (data[idx] < 25 && data[idx+1] < 25 && data[idx+2] < 25) continue; // Eliminar fondo negro
 
-      let r = data[i], g = data[i+1], b = data[i+2];
-
-      if (r < 25 && g < 25 && b < 25) {
-        bufferR[i / 4] = -1;
-        continue;
-      }
-
-      const filtered = filterColorPixel(r, g, b, activeColorFilter);
-
-      r = adjustChannel(filtered.r, blackPoint, whitePoint, gamma);
-      g = adjustChannel(filtered.g, blackPoint, whitePoint, gamma);
-      b = adjustChannel(filtered.b, blackPoint, whitePoint, gamma);
+      let r = data[idx], g = data[idx+1], b = data[idx+2];
+      r = adjustChannel(r, blackPoint, whitePoint, gamma);
+      g = adjustChannel(g, blackPoint, whitePoint, gamma);
+      b = adjustChannel(b, blackPoint, whitePoint, gamma);
 
       if (isInverted) {
-        r = 255 - r;
-        g = 255 - g;
-        b = 255 - b;
+        r = 255 - r; g = 255 - g; b = 255 - b;
       }
 
-      bufferR[i / 4] = r;
-      bufferG[i / 4] = g;
-      bufferB[i / 4] = b;
-    }
+      let luma = 0.299 * r + 0.587 * g + 0.114 * b;
+      let brightness = luma / 255;
+      let radius = (1 - brightness) * (cellSize / 2);
 
-    for (let y = 0; y < height; y++) {
-      for (let x = 0; x < width; x++) {
-        const idx = y * width + x;
-        const outIdx = idx * 4;
-
-        if (bufferR[idx] === -1) {
-          outData[outIdx + 3] = 0;
-          continue;
+      if (radius > 0.3) {
+        ctx.save();
+        ctx.translate(cx, cy);
+        ctx.rotate(angleRad);
+        ctx.fillStyle = isColorMode ? `rgb(${Math.round(r)}, ${Math.round(g)}, ${Math.round(b)})` : (isInverted ? '#ffffff' : '#000000');
+        ctx.beginPath();
+        if (shape === 'round') {
+          ctx.arc(0, 0, radius, 0, Math.PI * 2);
+          ctx.fill();
+        } else if (shape === 'line') {
+          const lineWidth = radius * 1.8;
+          ctx.fillRect(-cellSize / 2, -lineWidth / 2, cellSize, lineWidth);
         }
-
-        if (isColorMode) {
-          const oldR = bufferR[idx], oldG = bufferG[idx], oldB = bufferB[idx];
-          const newR = oldR < 128 ? 0 : 255;
-          const newG = oldG < 128 ? 0 : 255;
-          const newB = oldB < 128 ? 0 : 255;
-
-          outData[outIdx] = newR;
-          outData[outIdx+1] = newG;
-          outData[outIdx+2] = newB;
-          outData[outIdx+3] = 255;
-
-          const errR = oldR - newR, errG = oldG - newG, errB = oldB - newB;
-          if (x + 1 < width && bufferR[idx + 1] !== -1) {
-            bufferR[idx + 1] += errR * 7 / 16;
-            bufferG[idx + 1] += errG * 7 / 16;
-            bufferB[idx + 1] += errB * 7 / 16;
-          }
-          if (y + 1 < height) {
-            if (x > 0 && bufferR[idx + width - 1] !== -1) {
-              bufferR[idx + width - 1] += errR * 3 / 16;
-              bufferG[idx + width - 1] += errG * 3 / 16;
-              bufferB[idx + width - 1] += errB * 3 / 16;
-            }
-            if (bufferR[idx + width] !== -1) {
-              bufferR[idx + width] += errR * 5 / 16;
-              bufferG[idx + width] += errG * 5 / 16;
-              bufferB[idx + width] += errB * 5 / 16;
-            }
-            if (x + 1 < width && bufferR[idx + width + 1] !== -1) {
-              bufferR[idx + width + 1] += errR * 1 / 16;
-              bufferG[idx + width + 1] += errG * 1 / 16;
-              bufferB[idx + width + 1] += errB * 1 / 16;
-            }
-          }
-        } else {
-          const luma = 0.299 * bufferR[idx] + 0.587 * bufferG[idx] + 0.114 * bufferB[idx];
-          const newPixel = luma < 128 ? 0 : 255;
-          const error = luma - newPixel;
-
-          const val = isInverted ? (newPixel === 0 ? 255 : 0) : newPixel;
-          outData[outIdx] = val;
-          outData[outIdx+1] = val;
-          outData[outIdx+2] = val;
-          outData[outIdx+3] = 255;
-
-          if (x + 1 < width && bufferR[idx + 1] !== -1) bufferR[idx + 1] += error * 7 / 16;
-          if (y + 1 < height) {
-            if (x > 0 && bufferR[idx + width - 1] !== -1) bufferR[idx + width - 1] += error * 3 / 16;
-            if (bufferR[idx + width] !== -1) bufferR[idx + width] += error * 5 / 16;
-            if (x + 1 < width && bufferR[idx + width + 1] !== -1) bufferR[idx + width + 1] += error * 1 / 16;
-          }
-        }
-      }
-    }
-    ctx.putImageData(imgOut, 0, 0);
-
-  } else {
-    const angleRad = (parseFloat(screenAngleInput.value) * Math.PI) / 180;
-    const shape = dotShapeSelect.value;
-
-    for (let y = 0; y < height; y += cellSize) {
-      for (let x = 0; x < width; x += cellSize) {
-        const cx = x + cellSize / 2;
-        const cy = y + cellSize / 2;
-
-        const sampleX = Math.min(Math.max(Math.floor(cx), 0), width - 1);
-        const sampleY = Math.min(Math.max(Math.floor(cy), 0), height - 1);
-        const idx = (sampleY * width + sampleX) * 4;
-
-        if (data[idx + 3] < 20) continue;
-
-        let r = data[idx], g = data[idx+1], b = data[idx+2];
-
-        if (r < 25 && g < 25 && b < 25) continue;
-
-        const filtered = filterColorPixel(r, g, b, activeColorFilter);
-
-        r = adjustChannel(filtered.r, blackPoint, whitePoint, gamma);
-        g = adjustChannel(filtered.g, blackPoint, whitePoint, gamma);
-        b = adjustChannel(filtered.b, blackPoint, whitePoint, gamma);
-
-        if (isInverted) {
-          r = 255 - r;
-          g = 255 - g;
-          b = 255 - b;
-        }
-
-        let luma = 0.299 * r + 0.587 * g + 0.114 * b;
-        let brightness = luma / 255;
-        let radius = (1 - brightness) * (cellSize / 2);
-
-        if (radius > 0.3) {
-          ctx.save();
-          ctx.translate(cx, cy);
-          ctx.rotate(angleRad);
-
-          if (isColorMode) {
-            ctx.fillStyle = `rgb(${Math.round(r)}, ${Math.round(g)}, ${Math.round(b)})`;
-          } else {
-            ctx.fillStyle = isInverted ? '#ffffff' : '#000000';
-          }
-
-          ctx.beginPath();
-          if (shape === 'round') {
-            ctx.arc(0, 0, radius, 0, Math.PI * 2);
-            ctx.fill();
-          } else if (shape === 'line') {
-            const lineWidth = radius * 1.8;
-            ctx.fillRect(-cellSize / 2, -lineWidth / 2, cellSize, lineWidth);
-          }
-          ctx.restore();
-        }
+        ctx.restore();
       }
     }
   }
@@ -528,3 +477,4 @@ if (darkGarmentPresetBtn) {
     if (loadedImage) processHalftone();
   });
 }
+
