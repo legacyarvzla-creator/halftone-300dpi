@@ -22,7 +22,7 @@ const gammaInput = document.getElementById('gammaInput');
 const gammaVal = document.getElementById('gammaVal');
 
 const canvas = document.getElementById('canvas');
-const ctx = canvas.getContext('2d');
+const ctx = canvas.getContext('2d', { willReadFrequently: true });
 
 let loadedImage = null;
 
