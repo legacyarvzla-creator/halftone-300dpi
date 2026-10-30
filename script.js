@@ -401,4 +401,11 @@ if (darkGarmentPresetBtn) {
       darkGarmentPresetBtn.style.color = '#0b0c10';
       darkGarmentPresetBtn.style.borderColor = '#ffffff';
     } else {
-      darkGarmentPresetBtn.style
+      darkGarmentPresetBtn.style.background = '#0b0c10';
+      darkGarmentPresetBtn.style.color = '#ffffff';
+      darkGarmentPresetBtn.style.borderColor = '#90a4ae';
+    }
+
+    if (loadedImage) processHalftone();
+  });
+}
