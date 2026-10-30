@@ -18,7 +18,7 @@
         <input type="file" id="imageInput" accept="image/*">
       </div>
 
-      <!-- Método -->
+      <!-- Método de Tramado -->
       <div class="control-group">
         <label for="methodSelect">Método de Tramado:</label>
         <select id="methodSelect">
@@ -52,6 +52,15 @@
           <option value="round">Redondo (Circular)</option>
           <option value="line">Línea (Estilo grabado)</option>
         </select>
+      </div>
+
+      <!-- Modo de Salida: Invertir para prenda oscura -->
+      <div class="control-group" style="grid-column: 1 / -1; border-top: 1px solid #eee; padding-top: 10px; margin-top: 5px;">
+        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+          <input type="checkbox" id="invertToggle"> 
+          <strong>Invertir para prenda oscura (Invert for Dark Garment)</strong>
+        </label>
+        <small style="color: #666; margin-top: 2px; display: block;">Invierte los tonos para imprimir con tinta clara sobre fondo oscuro.</small>
       </div>
 
       <!-- Recorte Automático de Fondo Negro -->
