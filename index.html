@@ -36,8 +36,8 @@
       <div class="control-group">
         <label for="methodSelect">Método de Tramado:</label>
         <select id="methodSelect">
-          <option value="halftone">Semitono (Patrón de puntos clásico)</option>
-          <option value="diffusion">Difusión (Textura tipo grano / Floyd-Steinberg)</option>
+          <option value="standard">Tramado Estándar (Rejilla)</option>
+          <option value="stochastic_fade">Difuminado Orgánico (DTF sin malla)</option>
         </select>
       </div>
 
@@ -69,17 +69,17 @@
       </div>
 
       <!-- Selector de Canales / Colores a Tramar -->
-    <div style="display: flex; gap: 8px; flex-wrap: wrap;" id="colorFilterGroup">
-  <button type="button" class="color-filter-btn active" data-color="all">Todos</button>
-  <button type="button" class="color-filter-btn" data-color="black">Negro</button>
-  <button type="button" class="color-filter-btn" data-color="red">Rojo</button>
-  <button type="button" class="color-filter-btn" data-color="green">Verde</button>
-  <button type="button" class="color-filter-btn" data-color="blue">Azul</button>
-  <button type="button" class="color-filter-btn" data-color="yellow">Amarillo</button>
-  <button type="button" class="color-filter-btn" data-color="pink">Rosa</button>
-  <button type="button" class="color-filter-btn" data-color="white">Blanco</button>
-</div>
-     
+      <div style="display: flex; gap: 8px; flex-wrap: wrap; grid-column: 1 / -1;" id="colorFilterGroup">
+        <button type="button" class="color-filter-btn active" data-color="all">Todos</button>
+        <button type="button" class="color-filter-btn" data-color="black">Negro</button>
+        <button type="button" class="color-filter-btn" data-color="red">Rojo</button>
+        <button type="button" class="color-filter-btn" data-color="green">Verde</button>
+        <button type="button" class="color-filter-btn" data-color="blue">Azul</button>
+        <button type="button" class="color-filter-btn" data-color="yellow">Amarillo</button>
+        <button type="button" class="color-filter-btn" data-color="pink">Rosa</button>
+        <button type="button" class="color-filter-btn" data-color="white">Blanco</button>
+      </div>
+      
       <!-- Botón de Acceso Directo para Prenda Negra -->
       <div class="control-group" style="grid-column: 1 / -1; border-top: 1px solid #333; padding-top: 15px; margin-top: 5px;">
         <button type="button" id="darkGarmentPresetBtn" style="width: 100%; padding: 10px; background: #0b0c10; color: #ffffff; border: 2px solid #90a4ae; border-radius: 6px; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;">
