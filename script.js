@@ -120,16 +120,108 @@ imageInput.addEventListener('change', (e) => {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.drawImage(img, 0, 0);
 
-      processHalftone();
-      downloadBtn.disabled = false;
-    };
-    img.onerror = () => {
-      alert("Error al cargar la imagen.");
-    };
-    img.src = event.target.result;
-  };
-  reader.readAsDataURL(file);
-});
+      function processHalftone() {
+  let sourceToProcess = loadedImage;
+  if (cropBgToggle.checked) {
+    const thresholdVal = parseInt(cropThresholdInput.value, 10);
+    sourceToProcess = getCroppedImageCanvas(loadedImage, thresholdVal);
+  }
+
+  canvas.width = sourceToProcess.width;
+  canvas.height = sourceToProcess.height;
+
+  // 1. Limpiamos el canvas principal
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // 2. Dibujamos la imagen original de base limpia y sólida
+  ctx.drawImage(sourceToProcess, 0, 0);
+
+  // 3. Eliminación absoluta del fondo negro (cero semitransparencias en el interior)
+  const imgDataLayer = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  const pxData = imgDataLayer.data;
+  for (let i = 0; i < pxData.length; i += 4) {
+    if (pxData[i] < 15 && pxData[i+1] < 15 && pxData[i+2] < 15) {
+      pxData[i + 3] = 0; 
+    } else if (pxData[i + 3] > 20) {
+      pxData[i + 3] = 255; 
+    }
+  }
+  ctx.putImageData(imgDataLayer, 0, 0);
+
+  // 4. Canvas temporal para calcular la transición
+  const tempCanvas = document.createElement('canvas');
+  tempCanvas.width = sourceToProcess.width;
+  tempCanvas.height = sourceToProcess.height;
+  const tempCtx = tempCanvas.getContext('2d', { willReadFrequently: true });
+  tempCtx.drawImage(sourceToProcess, 0, 0);
+  const data = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height).data;
+
+  const blackPoint = parseInt(blackPointInput.value, 10);
+  const whitePoint = parseInt(whitePointInput.value, 10);
+  const gamma = parseFloat(gammaInput.value);
+  const isInverted = invertToggle.checked;
+  const angleRad = (parseFloat(screenAngleInput.value) * Math.PI) / 180;
+  const shape = dotShapeSelect.value;
+  const lpi = parseInt(screenLpiInput.value, 10);
+  
+  const cellSize = Math.max(4, Math.round(150 / lpi));
+
+  // 5. Aplicamos tramado con DISPERSIÓN ORGÁNICA (sin efecto malla/cuadrícula)
+  for (let y = 0; y < canvas.height; y += cellSize) {
+    for (let x = 0; x < canvas.width; x += cellSize) {
+      
+      const jitterX = (Math.random() - 0.5) * (cellSize * 0.8);
+      const jitterY = (Math.random() - 0.5) * (cellSize * 0.8);
+      
+      const cx = x + cellSize / 2 + jitterX;
+      const cy = y + cellSize / 2 + jitterY;
+
+      const sampleX = Math.min(Math.max(Math.floor(cx), 0), canvas.width - 1);
+      const sampleY = Math.min(Math.max(Math.floor(cy), 0), canvas.height - 1);
+      const idx = (sampleY * canvas.width + sampleX) * 4;
+
+      if (data[idx + 3] < 20) continue;
+
+      let r = data[idx], g = data[idx+1], b = data[idx+2];
+
+      if (r < 15 && g < 15 && b < 15) continue;
+
+      r = adjustChannel(r, blackPoint, whitePoint, gamma);
+      g = adjustChannel(g, blackPoint, whitePoint, gamma);
+      b = adjustChannel(b, blackPoint, whitePoint, gamma);
+
+      if (isInverted) {
+        r = 255 - r; g = 255 - g; b = 255 - b;
+      }
+
+      let luma = 0.299 * r + 0.587 * g + 0.114 * b;
+      
+      // Franja de transición suave (difuminado orgánico hacia el fondo)
+      if (luma > 10 && luma < 65) {
+        let transitionFactor = (luma - 10) / 55; 
+        let radius = transitionFactor * (cellSize * 0.4);
+
+        if (radius > 0.2) {
+          ctx.save();
+          ctx.translate(cx, cy);
+          ctx.rotate(angleRad);
+          
+          ctx.fillStyle = isInverted ? '#ffffff' : '#000000';
+
+          ctx.beginPath();
+          if (shape === 'round') {
+            ctx.arc(0, 0, radius, 0, Math.PI * 2);
+            ctx.fill();
+          } else if (shape === 'line') {
+            const lineWidth = radius * 1.2;
+            ctx.fillRect(-cellSize / 2, -lineWidth / 2, cellSize, lineWidth);
+          }
+          ctx.restore();
+        }
+      }
+    }
+  }
+}
 
 function getCroppedImageCanvas(img, threshold) {
   const tempCanvas = document.createElement('canvas');
