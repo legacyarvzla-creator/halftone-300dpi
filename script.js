@@ -1,5 +1,4 @@
 const imageInput = document.getElementById('imageInput');
-const garmentTypeSelect = document.getElementById('garmentType');
 const methodSelect = document.getElementById('methodSelect');
 const screenLpiInput = document.getElementById('screenLpi');
 const lpiVal = document.getElementById('lpiVal');
@@ -94,7 +93,6 @@ if (cropThresholdInput) {
   });
 }
 
-if (garmentTypeSelect) garmentTypeSelect.addEventListener('change', () => { if (loadedImage) processHalftone(); });
 if (screenLpiInput) screenLpiInput.addEventListener('input', () => { if (lpiVal) lpiVal.textContent = screenLpiInput.value; if (loadedImage) processHalftone(); });
 if (screenAngleInput) screenAngleInput.addEventListener('input', () => { if (angleVal) angleVal.textContent = screenAngleInput.value; if (loadedImage) processHalftone(); });
 if (methodSelect) methodSelect.addEventListener('change', () => { if (loadedImage) processHalftone(); });
@@ -225,11 +223,8 @@ function processHalftone() {
   canvas.width = sourceToProcess.width;
   canvas.height = sourceToProcess.height;
 
-  const isDarkGarment = garmentTypeSelect ? garmentTypeSelect.value === 'black' : false;
-
-  // Fondo dinámico según la prenda seleccionada
-  ctx.fillStyle = isDarkGarment ? '#000000' : '#ffffff';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  // LIMPÍA EL CANVAS DEJÁNDOLO 100% TRANSPARENTE
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
 
   const tempCanvas = document.createElement('canvas');
   tempCanvas.width = sourceToProcess.width;
@@ -267,11 +262,10 @@ function processHalftone() {
         let origG = adjustChannel(data[idx+1], blackPoint, whitePoint, gamma);
         let origB = adjustChannel(data[idx+2], blackPoint, whitePoint, gamma);
 
-        if (isDarkGarment && origR < 25 && origG < 25 && origB < 25) continue; 
-        if (!isDarkGarment && origR > 235 && origG > 235 && origB > 235) continue; 
+        if (origR < 25 && origG < 25 && origB < 25) continue; 
 
         let luma = 0.299 * origR + 0.587 * origG + 0.114 * origB;
-        let darkness = isDarkGarment ? (luma / 255) : (1 - (luma / 255));
+        let darkness = 1 - (luma / 255);
         let radius = darkness * (cellSize * 0.55);
 
         if (radius > 0.3) {
@@ -303,11 +297,10 @@ function processHalftone() {
         let origG = adjustChannel(data[idx+1], blackPoint, whitePoint, gamma);
         let origB = adjustChannel(data[idx+2], blackPoint, whitePoint, gamma);
 
-        if (isDarkGarment && origR < 25 && origG < 25 && origB < 25) continue; 
-        if (!isDarkGarment && origR > 235 && origG > 235 && origB > 235) continue; 
+        if (origR < 25 && origG < 25 && origB < 25) continue; 
 
         let luma = 0.299 * origR + 0.587 * origG + 0.114 * origB;
-        let darkness = isDarkGarment ? (luma / 255) : (1 - (luma / 255));
+        let darkness = 1 - (luma / 255);
         let lineHeight = darkness * cellSize;
 
         if (lineHeight > 0.4) {
@@ -335,14 +328,13 @@ function processHalftone() {
         let origG = adjustChannel(data[idx+1], blackPoint, whitePoint, gamma);
         let origB = adjustChannel(data[idx+2], blackPoint, whitePoint, gamma);
 
-        if (isDarkGarment && origR < 25 && origG < 25 && origB < 25) continue;
-        if (!isDarkGarment && origR > 235 && origG > 235 && origB > 235) continue;
+        if (origR < 25 && origG < 25 && origB < 25) continue;
 
         let dist = Math.sqrt((x - centerX) ** 2 + (y - centerY) ** 2);
         let wave = Math.sin(dist / (cellSize * 0.4));
 
         let luma = 0.299 * origR + 0.587 * origG + 0.114 * origB;
-        let threshold = isDarkGarment ? (1 - (luma / 255) * 2) : ((luma / 255) * 2 - 1);
+        let threshold = (luma / 255) * 2 - 1;
 
         if (wave > threshold) {
           ctx.fillStyle = `rgb(${Math.round(origR)},${Math.round(origG)},${Math.round(origB)})`;
@@ -371,11 +363,10 @@ function processHalftone() {
         let origG = adjustChannel(data[idx+1], blackPoint, whitePoint, gamma);
         let origB = adjustChannel(data[idx+2], blackPoint, whitePoint, gamma);
 
-        if (isDarkGarment && origR < 25 && origG < 25 && origB < 25) continue;
-        if (!isDarkGarment && origR > 235 && origG > 235 && origB > 235) continue;
+        if (origR < 25 && origG < 25 && origB < 25) continue;
 
         let luma = 0.299 * origR + 0.587 * origG + 0.114 * origB;
-        let transitionFactor = isDarkGarment ? ((luma - 10) / 235) : (1 - (luma / 235));
+        let transitionFactor = 1 - (luma / 235);
         let radius = Math.abs(transitionFactor) * (cellSize * 0.4);
 
         if (radius > 0.15) {
@@ -397,7 +388,7 @@ function processHalftone() {
       }
     }
 
-  // --- 5. DIFUSIÓN / GRANO ---
+  // --- 5. DIFUSIÓN / GRANO REAL ---
   } else if (currentMethod === 'diffusion') {
     const imgW = canvas.width;
     const imgH = canvas.height;
@@ -409,11 +400,8 @@ function processHalftone() {
       for (let x = 0; x < imgW; x++) {
         const idx = (y * imgW + x) * 4;
 
-        if (data[idx + 3] < 20 || (isDarkGarment && data[idx] < 25 && data[idx + 1] < 25 && data[idx + 2] < 25)) {
-          outPx[idx + 3] = isDarkGarment ? 255 : 0;
-          outPx[idx] = isDarkGarment ? 0 : 255;
-          outPx[idx + 1] = isDarkGarment ? 0 : 255;
-          outPx[idx + 2] = isDarkGarment ? 0 : 255;
+        if (data[idx + 3] < 20 || (data[idx] < 25 && data[idx + 1] < 25 && data[idx + 2] < 25)) {
+          outPx[idx + 3] = 0; // Transparente real
           continue;
         }
 
@@ -446,11 +434,10 @@ function processHalftone() {
         let origG = adjustChannel(data[idx+1], blackPoint, whitePoint, gamma);
         let origB = adjustChannel(data[idx+2], blackPoint, whitePoint, gamma);
 
-        if (isDarkGarment && origR < 25 && origG < 25 && origB < 25) continue; 
-        if (!isDarkGarment && origR > 235 && origG > 235 && origB > 235) continue; 
+        if (origR < 25 && origG < 25 && origB < 25) continue; 
 
         let luma = 0.299 * origR + 0.587 * origG + 0.114 * origB;
-        let darkness = isDarkGarment ? (luma / 255) : (1 - (luma / 255));
+        let darkness = 1 - (luma / 255);
         let radius = darkness * (cellSize * 0.85);
 
         if (radius > 0.4) {
@@ -545,14 +532,14 @@ if (downloadBtn) {
         link.href = dpiDataUrl;
         link.click();
 
-        downloadBtn.textContent = 'Descargar Imagen (300 DPI)';
+        downloadBtn.textContent = 'Descargar Imagen (300 DPI - Transparente)';
         downloadBtn.disabled = false;
       }, 100);
 
     } catch (error) {
       console.error("Error al descargar:", error);
       alert("La imagen es demasiado grande para la memoria del navegador.");
-      downloadBtn.textContent = 'Descargar Imagen (300 DPI)';
+      downloadBtn.textContent = 'Descargar Imagen (300 DPI - Transparente)';
       downloadBtn.disabled = false;
     }
   });
