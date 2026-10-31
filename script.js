@@ -1,5 +1,4 @@
 const imageInput = document.getElementById('imageInput');
-const colorModeSelect = document.getElementById('colorModeSelect');
 const methodSelect = document.getElementById('methodSelect');
 const screenLpiInput = document.getElementById('screenLpi');
 const lpiVal = document.getElementById('lpiVal');
@@ -32,7 +31,6 @@ const zoomValDisplay = document.getElementById('zoomVal');
 
 let currentZoom = 1.0; 
 let loadedImage = null;
-let activeColorFilter = 'all';
 
 function updateZoomDisplay() {
   if (canvas) {
@@ -72,22 +70,6 @@ window.resetInput = function(id, defaultValue) {
   el.dispatchEvent(new Event('input'));
 };
 
-document.querySelectorAll('.color-filter-btn').forEach(btn => {
-  btn.addEventListener('click', (e) => {
-    document.querySelectorAll('.color-filter-btn').forEach(b => {
-      b.style.background = '#f8f9fa';
-      b.style.color = '#000';
-      b.classList.remove('active');
-    });
-    e.target.style.background = '#2c3e50';
-    e.target.style.color = '#fff';
-    e.target.classList.add('active');
-
-    activeColorFilter = e.target.getAttribute('data-color');
-    if (loadedImage) processHalftone();
-  });
-});
-
 if (cropBgToggle) {
   cropBgToggle.addEventListener('change', () => {
     if (cropBgToggle.checked) {
@@ -112,7 +94,6 @@ if (cropThresholdInput) {
   });
 }
 
-if (colorModeSelect) colorModeSelect.addEventListener('change', () => { if (loadedImage) processHalftone(); });
 if (screenLpiInput) screenLpiInput.addEventListener('input', () => { if (lpiVal) lpiVal.textContent = screenLpiInput.value; if (loadedImage) processHalftone(); });
 if (screenAngleInput) screenAngleInput.addEventListener('input', () => { if (angleVal) angleVal.textContent = screenAngleInput.value; if (loadedImage) processHalftone(); });
 if (methodSelect) methodSelect.addEventListener('change', () => { if (loadedImage) processHalftone(); });
@@ -244,19 +225,11 @@ function processHalftone() {
   canvas.width = sourceToProcess.width;
   canvas.height = sourceToProcess.height;
 
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  ctx.drawImage(sourceToProcess, 0, 0);
+  const isInverted = invertToggle ? invertToggle.checked : false;
 
-  const imgDataLayer = ctx.getImageData(0, 0, canvas.width, canvas.height);
-  const pxData = imgDataLayer.data;
-  for (let i = 0; i < pxData.length; i += 4) {
-    if (pxData[i] < 15 && pxData[i+1] < 15 && pxData[i+2] < 15) {
-      pxData[i + 3] = 0; 
-    } else if (pxData[i + 3] > 20) {
-      pxData[i + 3] = 255; 
-    }
-  }
-  ctx.putImageData(imgDataLayer, 0, 0);
+  // Fondo dinámico según la franela: Negro para franela blanca / Blanco para franela negra
+  ctx.fillStyle = isInverted ? '#ffffff' : '#000000';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
 
   const tempCanvas = document.createElement('canvas');
   tempCanvas.width = sourceToProcess.width;
@@ -268,7 +241,6 @@ function processHalftone() {
   const blackPoint = parseInt(blackPointInput ? blackPointInput.value : 0, 10);
   const whitePoint = parseInt(whitePointInput ? whitePointInput.value : 255, 10);
   const gamma = parseFloat(gammaInput ? gammaInput.value : 1.0);
-  const isInverted = invertToggle ? invertToggle.checked : false;
   const angleRad = (parseFloat(screenAngleInput ? screenAngleInput.value : 22.5) * Math.PI) / 180;
   const shape = dotShapeSelect ? dotShapeSelect.value : 'round';
   const lpi = parseInt(screenLpiInput ? screenLpiInput.value : 30, 10);
@@ -276,9 +248,117 @@ function processHalftone() {
   
   const cellSize = Math.max(3, Math.round(180 / lpi));
 
-  if (currentMethod === 'stochastic_fade') {
-    // --- MODO 1: DIFUMINADO ORGÁNICO ---
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+  // --- 1. HEXAGONAL ---
+  if (currentMethod === 'hexagonal') {
+    const rowHeight = cellSize * 0.866; 
+    let rowIndex = 0;
+    for (let y = 0; y < canvas.height + cellSize; y += rowHeight) {
+      const xOffset = (rowIndex % 2 === 0) ? 0 : cellSize / 2;
+      for (let x = -cellSize; x < canvas.width + cellSize; x += cellSize) {
+        const cx = x + xOffset + cellSize / 2;
+        const cy = y + rowHeight / 2;
+
+        const sampleX = Math.min(Math.max(Math.floor(cx), 0), canvas.width - 1);
+        const sampleY = Math.min(Math.max(Math.floor(cy), 0), canvas.height - 1);
+        const idx = (sampleY * canvas.width + sampleX) * 4;
+
+        if (data[idx + 3] < 20) continue;
+        let origR = data[idx], origG = data[idx+1], origB = data[idx+2];
+        if (!isInverted && origR < 25 && origG < 25 && origB < 25) continue; 
+
+        origR = adjustChannel(origR, blackPoint, whitePoint, gamma);
+        origG = adjustChannel(origG, blackPoint, whitePoint, gamma);
+        origB = adjustChannel(origB, blackPoint, whitePoint, gamma);
+
+        if (isInverted) { origR = 255 - origR; origG = 255 - origG; origB = 255 - origB; }
+
+        let luma = 0.299 * origR + 0.587 * origG + 0.114 * origB;
+        let darkness = 1 - (luma / 255);
+        let radius = darkness * (cellSize * 0.55);
+
+        if (radius > 0.3) {
+          ctx.save();
+          ctx.translate(cx, cy);
+          ctx.fillStyle = `rgb(${origR},${origG},${origB})`;
+          ctx.beginPath();
+          ctx.arc(0, 0, radius, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.restore();
+        }
+      }
+      rowIndex++;
+    }
+
+  // --- 2. LÍNEAS DE GRABADO ---
+  } else if (currentMethod === 'lines') {
+    for (let y = 0; y < canvas.height; y += cellSize) {
+      for (let x = 0; x < canvas.width; x += cellSize) {
+        const cx = x + cellSize / 2;
+        const cy = y + cellSize / 2;
+
+        const sampleX = Math.min(Math.max(Math.floor(cx), 0), canvas.width - 1);
+        const sampleY = Math.min(Math.max(Math.floor(cy), 0), canvas.height - 1);
+        const idx = (sampleY * canvas.width + sampleX) * 4;
+
+        if (data[idx + 3] < 20) continue;
+        let origR = data[idx], origG = data[idx+1], origB = data[idx+2];
+        if (!isInverted && origR < 25 && origG < 25 && origB < 25) continue; 
+
+        origR = adjustChannel(origR, blackPoint, whitePoint, gamma);
+        origG = adjustChannel(origG, blackPoint, whitePoint, gamma);
+        origB = adjustChannel(origB, blackPoint, whitePoint, gamma);
+
+        if (isInverted) { origR = 255 - origR; origG = 255 - origG; origB = 255 - origB; }
+
+        let luma = 0.299 * origR + 0.587 * origG + 0.114 * origB;
+        let darkness = 1 - (luma / 255);
+        let lineHeight = darkness * cellSize;
+
+        if (lineHeight > 0.4) {
+          ctx.save();
+          ctx.translate(cx, cy);
+          ctx.rotate(angleRad);
+          ctx.fillStyle = `rgb(${origR},${origG},${origB})`;
+          ctx.fillRect(-cellSize / 2, -lineHeight / 2, cellSize, lineHeight);
+          ctx.restore();
+        }
+      }
+    }
+
+  // --- 3. ANILLOS CONCÉNTRICOS ---
+  } else if (currentMethod === 'concentric') {
+    const centerX = canvas.width / 2;
+    const centerY = canvas.height / 2;
+
+    for (let y = 0; y < canvas.height; y += 2) {
+      for (let x = 0; x < canvas.width; x += 2) {
+        const idx = (y * canvas.width + x) * 4;
+        if (data[idx + 3] < 20) continue;
+
+        let origR = data[idx], origG = data[idx+1], origB = data[idx+2];
+        if (!isInverted && origR < 25 && origG < 25 && origB < 25) continue;
+
+        origR = adjustChannel(origR, blackPoint, whitePoint, gamma);
+        origG = adjustChannel(origG, blackPoint, whitePoint, gamma);
+        origB = adjustChannel(origB, blackPoint, whitePoint, gamma);
+
+        if (isInverted) { origR = 255 - origR; origG = 255 - origG; origB = 255 - origB; }
+
+        let dist = Math.sqrt((x - centerX) ** 2 + (y - centerY) ** 2);
+        let wave = Math.sin(dist / (cellSize * 0.4));
+
+        let luma = 0.299 * origR + 0.587 * origG + 0.114 * origB;
+        let threshold = (luma / 255) * 2 - 1;
+
+        if (wave > threshold) {
+          ctx.fillStyle = `rgb(${origR},${origG},${origB})`;
+          ctx.fillRect(x, y, 2, 2);
+        }
+      }
+    }
+
+  // --- 4. DIFUMINADO ORGÁNICO ---
+  } else if (currentMethod === 'stochastic_fade') {
     for (let y = 0; y < canvas.height; y += cellSize) {
       for (let x = 0; x < canvas.width; x += cellSize) {
         const jitterX = (Math.random() - 0.5) * (cellSize * 0.7);
@@ -293,44 +373,40 @@ function processHalftone() {
 
         if (data[idx + 3] < 20) continue;
 
-        let r = data[idx], g = data[idx+1], b = data[idx+2];
-        if (r < 20 && g < 20 && b < 20) continue;
+        let origR = data[idx], origG = data[idx+1], origB = data[idx+2];
+        if (!isInverted && origR < 25 && origG < 25 && origB < 25) continue;
 
-        r = adjustChannel(r, blackPoint, whitePoint, gamma);
-        g = adjustChannel(g, blackPoint, whitePoint, gamma);
-        b = adjustChannel(b, blackPoint, whitePoint, gamma);
+        origR = adjustChannel(origR, blackPoint, whitePoint, gamma);
+        origG = adjustChannel(origG, blackPoint, whitePoint, gamma);
+        origB = adjustChannel(origB, blackPoint, whitePoint, gamma);
 
-        if (isInverted) {
-          r = 255 - r; g = 255 - g; b = 255 - b;
-        }
+        if (isInverted) { origR = 255 - origR; origG = 255 - origG; origB = 255 - origB; }
 
-        let luma = 0.299 * r + 0.587 * g + 0.114 * b;
-        
-        if (luma > 20 && luma < 230) {
-          let transitionFactor = (luma - 20) / 210; 
-          let radius = transitionFactor * (cellSize * 0.4);
+        let luma = 0.299 * origR + 0.587 * origG + 0.114 * origB;
+        let transitionFactor = (luma - 10) / 235; 
+        let radius = transitionFactor * (cellSize * 0.4);
 
-          if (radius > 0.15) {
-            ctx.save();
-            ctx.translate(cx, cy);
-            ctx.rotate(angleRad);
-            ctx.fillStyle = `rgb(${r},${g},${b})`;
+        if (radius > 0.15) {
+          ctx.save();
+          ctx.translate(cx, cy);
+          ctx.rotate(angleRad);
+          ctx.fillStyle = `rgb(${origR},${origG},${origB})`;
 
-            ctx.beginPath();
-            if (shape === 'round') {
-              ctx.arc(0, 0, radius, 0, Math.PI * 2);
-              ctx.fill();
-            } else if (shape === 'line') {
-              const lineWidth = radius * 1.1;
-              ctx.fillRect(-cellSize / 2, -lineWidth / 2, cellSize, lineWidth);
-            }
-            ctx.restore();
+          ctx.beginPath();
+          if (shape === 'round') {
+            ctx.arc(0, 0, radius, 0, Math.PI * 2);
+            ctx.fill();
+          } else if (shape === 'line') {
+            const lineWidth = radius * 1.1;
+            ctx.fillRect(-cellSize / 2, -lineWidth / 2, cellSize, lineWidth);
           }
+          ctx.restore();
         }
       }
     }
+
+  // --- 5. DIFUSIÓN / GRANO ---
   } else if (currentMethod === 'diffusion') {
-    // --- MODO 2: DIFUSIÓN A COLOR REAL ---
     const imgW = canvas.width;
     const imgH = canvas.height;
     
@@ -341,30 +417,30 @@ function processHalftone() {
       for (let x = 0; x < imgW; x++) {
         const idx = (y * imgW + x) * 4;
 
-        if (data[idx + 3] < 20 || (data[idx] < 25 && data[idx + 1] < 25 && data[idx + 2] < 25)) {
-          outPx[idx + 3] = 0;
+        if (data[idx + 3] < 20 || (!isInverted && data[idx] < 25 && data[idx + 1] < 25 && data[idx + 2] < 25)) {
+          outPx[idx + 3] = isInverted ? 255 : 0;
+          outPx[idx] = isInverted ? 255 : 0;
+          outPx[idx + 1] = isInverted ? 255 : 0;
+          outPx[idx + 2] = isInverted ? 255 : 0;
           continue;
         }
 
-        let r = adjustChannel(data[idx], blackPoint, whitePoint, gamma);
-        let g = adjustChannel(data[idx+1], blackPoint, whitePoint, gamma);
-        let b = adjustChannel(data[idx+2], blackPoint, whitePoint, gamma);
-        
-        if (isInverted) {
-          r = 255 - r; g = 255 - g; b = 255 - b;
-        }
+        let origR = adjustChannel(data[idx], blackPoint, whitePoint, gamma);
+        let origG = adjustChannel(data[idx+1], blackPoint, whitePoint, gamma);
+        let origB = adjustChannel(data[idx+2], blackPoint, whitePoint, gamma);
 
-        outPx[idx] = r;
-        outPx[idx + 1] = g;
-        outPx[idx + 2] = b;
+        if (isInverted) { origR = 255 - origR; origG = 255 - origG; origB = 255 - origB; }
+
+        outPx[idx] = origR;
+        outPx[idx + 1] = origG;
+        outPx[idx + 2] = origB;
         outPx[idx + 3] = 255;
       }
     }
     ctx.putImageData(outputData, 0, 0);
 
+  // --- 6. TRAMADO ESTÁNDAR (REJILLA CUADRADA) ---
   } else {
-    // --- MODO 3: TRAMADO ESTÁNDAR A COLOR REAL ---
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
     for (let y = 0; y < canvas.height; y += cellSize) {
       for (let x = 0; x < canvas.width; x += cellSize) {
         const cx = x + cellSize / 2;
@@ -376,28 +452,24 @@ function processHalftone() {
 
         if (data[idx + 3] < 20) continue;
 
-        let r = data[idx], g = data[idx+1], b = data[idx+2];
-        if (r < 25 && g < 25 && b < 25) continue; // Mantiene el fondo negro limpio
+        let origR = data[idx], origG = data[idx+1], origB = data[idx+2];
+        if (!isInverted && origR < 25 && origG < 25 && origB < 25) continue; 
 
-        r = adjustChannel(r, blackPoint, whitePoint, gamma);
-        g = adjustChannel(g, blackPoint, whitePoint, gamma);
-        b = adjustChannel(b, blackPoint, whitePoint, gamma);
+        origR = adjustChannel(origR, blackPoint, whitePoint, gamma);
+        origG = adjustChannel(origG, blackPoint, whitePoint, gamma);
+        origB = adjustChannel(origB, blackPoint, whitePoint, gamma);
 
-        if (isInverted) {
-          r = 255 - r; g = 255 - g; b = 255 - b;
-        }
+        if (isInverted) { origR = 255 - origR; origG = 255 - origG; origB = 255 - origB; }
 
-        // Usamos la luminancia correcta para calcular el tamaño del punto sin alterar el color
-        let luma = 0.299 * r + 0.587 * g + 0.114 * b;
+        let luma = 0.299 * origR + 0.587 * origG + 0.114 * origB;
         let darkness = 1 - (luma / 255);
         let radius = darkness * (cellSize * 0.85);
 
-        if (radius > 0.4 && luma < 240) {
+        if (radius > 0.4) {
           ctx.save();
           ctx.translate(cx, cy);
           ctx.rotate(angleRad);
-          // Mantiene los colores originales exactos de la imagen en cada punto
-          ctx.fillStyle = `rgb(${Math.round(r)},${Math.round(g)},${Math.round(b)})`;
+          ctx.fillStyle = `rgb(${origR},${origG},${origB})`;
 
           ctx.beginPath();
           if (shape === 'round') {
