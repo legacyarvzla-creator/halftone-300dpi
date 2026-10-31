@@ -223,7 +223,7 @@ function processHalftone() {
   canvas.width = sourceToProcess.width;
   canvas.height = sourceToProcess.height;
 
-  // LIMPÍA EL CANVAS DEJÁNDOLO 100% TRANSPARENTE
+  // CANVAS TRANSPARENTE REAL (PNG SIN FONDO)
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
   const tempCanvas = document.createElement('canvas');
@@ -239,12 +239,92 @@ function processHalftone() {
   const angleRad = (parseFloat(screenAngleInput ? screenAngleInput.value : 22.5) * Math.PI) / 180;
   const shape = dotShapeSelect ? dotShapeSelect.value : 'round';
   const lpi = parseInt(screenLpiInput ? screenLpiInput.value : 30, 10);
-  const currentMethod = methodSelect ? methodSelect.value : 'standard';
+  const currentMethod = methodSelect ? methodSelect.value : 'diffusion_original';
   
   const cellSize = Math.max(3, Math.round(180 / lpi));
 
-  // --- 1. HEXAGONAL ---
-  if (currentMethod === 'hexagonal') {
+  // --- 1. DIFUSIÓN / GRANO REAL ORIGINAL (TU FAVORITA INTACTA) ---
+  if (currentMethod === 'diffusion_original') {
+    const imgW = canvas.width;
+    const imgH = canvas.height;
+    const outputData = ctx.createImageData(imgW, imgH);
+    const outPx = outputData.data;
+
+    for (let y = 0; y < imgH; y++) {
+      for (let x = 0; x < imgW; x++) {
+        const idx = (y * imgW + x) * 4;
+
+        if (data[idx + 3] < 20 || (data[idx] < 25 && data[idx + 1] < 25 && data[idx + 2] < 25)) {
+          outPx[idx + 3] = 0; // Transparente puro
+          continue;
+        }
+
+        outPx[idx] = adjustChannel(data[idx], blackPoint, whitePoint, gamma);
+        outPx[idx + 1] = adjustChannel(data[idx+1], blackPoint, whitePoint, gamma);
+        outPx[idx + 2] = adjustChannel(data[idx+2], blackPoint, whitePoint, gamma);
+        outPx[idx + 3] = 255;
+      }
+    }
+    ctx.putImageData(outputData, 0, 0);
+
+  // --- 2. DIFUSIÓN / GRANO AJUSTABLE (MODULADO POR DENSIDAD LPI) ---
+  } else if (currentMethod === 'diffusion_variable') {
+    const step = Math.max(1, Math.round(50 / lpi));
+    for (let y = 0; y < canvas.height; y += step) {
+      for (let x = 0; x < canvas.width; x += step) {
+        const idx = (y * canvas.width + x) * 4;
+
+        if (data[idx + 3] < 20 || (data[idx] < 25 && data[idx + 1] < 25 && data[idx + 2] < 25)) continue;
+
+        let r = adjustChannel(data[idx], blackPoint, whitePoint, gamma);
+        let g = adjustChannel(data[idx+1], blackPoint, whitePoint, gamma);
+        let b = adjustChannel(data[idx+2], blackPoint, whitePoint, gamma);
+
+        ctx.fillStyle = `rgb(${Math.round(r)},${Math.round(g)},${Math.round(b)})`;
+        ctx.fillRect(x, y, step, step);
+      }
+    }
+
+  // --- 3. REJILLA CUADRADA A COLOR REAL ---
+  } else if (currentMethod === 'standard') {
+    for (let y = 0; y < canvas.height; y += cellSize) {
+      for (let x = 0; x < canvas.width; x += cellSize) {
+        const cx = x + cellSize / 2;
+        const cy = y + cellSize / 2;
+
+        const sampleX = Math.min(Math.max(Math.floor(cx), 0), canvas.width - 1);
+        const sampleY = Math.min(Math.max(Math.floor(cy), 0), canvas.height - 1);
+        const idx = (sampleY * canvas.width + sampleX) * 4;
+
+        if (data[idx + 3] < 20 || (data[idx] < 25 && data[idx+1] < 25 && data[idx+2] < 25)) continue;
+
+        let r = adjustChannel(data[idx], blackPoint, whitePoint, gamma);
+        let g = adjustChannel(data[idx+1], blackPoint, whitePoint, gamma);
+        let b = adjustChannel(data[idx+2], blackPoint, whitePoint, gamma);
+
+        let luma = 0.299 * r + 0.587 * g + 0.114 * b;
+        let radius = (luma / 255) * (cellSize * 0.45);
+
+        if (radius > 0.3) {
+          ctx.save();
+          ctx.translate(cx, cy);
+          ctx.rotate(angleRad);
+          ctx.fillStyle = `rgb(${Math.round(r)},${Math.round(g)},${Math.round(b)})`;
+
+          ctx.beginPath();
+          if (shape === 'round') {
+            ctx.arc(0, 0, radius, 0, Math.PI * 2);
+            ctx.fill();
+          } else {
+            ctx.fillRect(-cellSize / 2, -(radius), cellSize, radius * 2);
+          }
+          ctx.restore();
+        }
+      }
+    }
+
+  // --- 4. TRAMADO HEXAGONAL (PANAL A COLOR REAL) ---
+  } else if (currentMethod === 'hexagonal') {
     const rowHeight = cellSize * 0.866; 
     let rowIndex = 0;
     for (let y = 0; y < canvas.height + cellSize; y += rowHeight) {
@@ -257,21 +337,19 @@ function processHalftone() {
         const sampleY = Math.min(Math.max(Math.floor(cy), 0), canvas.height - 1);
         const idx = (sampleY * canvas.width + sampleX) * 4;
 
-        if (data[idx + 3] < 20) continue;
-        let origR = adjustChannel(data[idx], blackPoint, whitePoint, gamma);
-        let origG = adjustChannel(data[idx+1], blackPoint, whitePoint, gamma);
-        let origB = adjustChannel(data[idx+2], blackPoint, whitePoint, gamma);
+        if (data[idx + 3] < 20 || (data[idx] < 25 && data[idx+1] < 25 && data[idx+2] < 25)) continue;
 
-        if (origR < 25 && origG < 25 && origB < 25) continue; 
+        let r = adjustChannel(data[idx], blackPoint, whitePoint, gamma);
+        let g = adjustChannel(data[idx+1], blackPoint, whitePoint, gamma);
+        let b = adjustChannel(data[idx+2], blackPoint, whitePoint, gamma);
 
-        let luma = 0.299 * origR + 0.587 * origG + 0.114 * origB;
-        let darkness = 1 - (luma / 255);
-        let radius = darkness * (cellSize * 0.55);
+        let luma = 0.299 * r + 0.587 * g + 0.114 * b;
+        let radius = (luma / 255) * (cellSize * 0.5);
 
         if (radius > 0.3) {
           ctx.save();
           ctx.translate(cx, cy);
-          ctx.fillStyle = `rgb(${Math.round(origR)},${Math.round(origG)},${Math.round(origB)})`;
+          ctx.fillStyle = `rgb(${Math.round(r)},${Math.round(g)},${Math.round(b)})`;
           ctx.beginPath();
           ctx.arc(0, 0, radius, 0, Math.PI * 2);
           ctx.fill();
@@ -281,7 +359,7 @@ function processHalftone() {
       rowIndex++;
     }
 
-  // --- 2. LÍNEAS DE GRABADO ---
+  // --- 5. LÍNEAS DE GRABADO A COLOR REAL ---
   } else if (currentMethod === 'lines') {
     for (let y = 0; y < canvas.height; y += cellSize) {
       for (let x = 0; x < canvas.width; x += cellSize) {
@@ -292,29 +370,27 @@ function processHalftone() {
         const sampleY = Math.min(Math.max(Math.floor(cy), 0), canvas.height - 1);
         const idx = (sampleY * canvas.width + sampleX) * 4;
 
-        if (data[idx + 3] < 20) continue;
-        let origR = adjustChannel(data[idx], blackPoint, whitePoint, gamma);
-        let origG = adjustChannel(data[idx+1], blackPoint, whitePoint, gamma);
-        let origB = adjustChannel(data[idx+2], blackPoint, whitePoint, gamma);
+        if (data[idx + 3] < 20 || (data[idx] < 25 && data[idx+1] < 25 && data[idx+2] < 25)) continue;
 
-        if (origR < 25 && origG < 25 && origB < 25) continue; 
+        let r = adjustChannel(data[idx], blackPoint, whitePoint, gamma);
+        let g = adjustChannel(data[idx+1], blackPoint, whitePoint, gamma);
+        let b = adjustChannel(data[idx+2], blackPoint, whitePoint, gamma);
 
-        let luma = 0.299 * origR + 0.587 * origG + 0.114 * origB;
-        let darkness = 1 - (luma / 255);
-        let lineHeight = darkness * cellSize;
+        let luma = 0.299 * r + 0.587 * g + 0.114 * b;
+        let lineHeight = (luma / 255) * cellSize;
 
         if (lineHeight > 0.4) {
           ctx.save();
           ctx.translate(cx, cy);
           ctx.rotate(angleRad);
-          ctx.fillStyle = `rgb(${Math.round(origR)},${Math.round(origG)},${Math.round(origB)})`;
+          ctx.fillStyle = `rgb(${Math.round(r)},${Math.round(g)},${Math.round(b)})`;
           ctx.fillRect(-cellSize / 2, -lineHeight / 2, cellSize, lineHeight);
           ctx.restore();
         }
       }
     }
 
-  // --- 3. ANILLOS CONCÉNTRICOS ---
+  // --- 6. ANILLOS CONCÉNTRICOS A COLOR REAL ---
   } else if (currentMethod === 'concentric') {
     const centerX = canvas.width / 2;
     const centerY = canvas.height / 2;
@@ -322,28 +398,25 @@ function processHalftone() {
     for (let y = 0; y < canvas.height; y += 2) {
       for (let x = 0; x < canvas.width; x += 2) {
         const idx = (y * canvas.width + x) * 4;
-        if (data[idx + 3] < 20) continue;
+        if (data[idx + 3] < 20 || (data[idx] < 25 && data[idx+1] < 25 && data[idx+2] < 25)) continue;
 
-        let origR = adjustChannel(data[idx], blackPoint, whitePoint, gamma);
-        let origG = adjustChannel(data[idx+1], blackPoint, whitePoint, gamma);
-        let origB = adjustChannel(data[idx+2], blackPoint, whitePoint, gamma);
-
-        if (origR < 25 && origG < 25 && origB < 25) continue;
+        let r = adjustChannel(data[idx], blackPoint, whitePoint, gamma);
+        let g = adjustChannel(data[idx+1], blackPoint, whitePoint, gamma);
+        let b = adjustChannel(data[idx+2], blackPoint, whitePoint, gamma);
 
         let dist = Math.sqrt((x - centerX) ** 2 + (y - centerY) ** 2);
         let wave = Math.sin(dist / (cellSize * 0.4));
-
-        let luma = 0.299 * origR + 0.587 * origG + 0.114 * origB;
-        let threshold = (luma / 255) * 2 - 1;
+        let luma = 0.299 * r + 0.587 * g + 0.114 * b;
+        let threshold = 1 - (luma / 255) * 2;
 
         if (wave > threshold) {
-          ctx.fillStyle = `rgb(${Math.round(origR)},${Math.round(origG)},${Math.round(origB)})`;
+          ctx.fillStyle = `rgb(${Math.round(r)},${Math.round(g)},${Math.round(b)})`;
           ctx.fillRect(x, y, 2, 2);
         }
       }
     }
 
-  // --- 4. DIFUMINADO ORGÁNICO ---
+  // --- 7. DIFUMINADO ORGÁNICO A COLOR REAL ---
   } else if (currentMethod === 'stochastic_fade') {
     for (let y = 0; y < canvas.height; y += cellSize) {
       for (let x = 0; x < canvas.width; x += cellSize) {
@@ -357,102 +430,27 @@ function processHalftone() {
         const sampleY = Math.min(Math.max(Math.floor(cy), 0), canvas.height - 1);
         const idx = (sampleY * canvas.width + sampleX) * 4;
 
-        if (data[idx + 3] < 20) continue;
+        if (data[idx + 3] < 20 || (data[idx] < 25 && data[idx+1] < 25 && data[idx+2] < 25)) continue;
 
-        let origR = adjustChannel(data[idx], blackPoint, whitePoint, gamma);
-        let origG = adjustChannel(data[idx+1], blackPoint, whitePoint, gamma);
-        let origB = adjustChannel(data[idx+2], blackPoint, whitePoint, gamma);
+        let r = adjustChannel(data[idx], blackPoint, whitePoint, gamma);
+        let g = adjustChannel(data[idx+1], blackPoint, whitePoint, gamma);
+        let b = adjustChannel(data[idx+2], blackPoint, whitePoint, gamma);
 
-        if (origR < 25 && origG < 25 && origB < 25) continue;
-
-        let luma = 0.299 * origR + 0.587 * origG + 0.114 * origB;
-        let transitionFactor = 1 - (luma / 235);
-        let radius = Math.abs(transitionFactor) * (cellSize * 0.4);
+        let luma = 0.299 * r + 0.587 * g + 0.114 * b;
+        let radius = (luma / 255) * (cellSize * 0.45);
 
         if (radius > 0.15) {
           ctx.save();
           ctx.translate(cx, cy);
           ctx.rotate(angleRad);
-          ctx.fillStyle = `rgb(${Math.round(origR)},${Math.round(origG)},${Math.round(origB)})`;
+          ctx.fillStyle = `rgb(${Math.round(r)},${Math.round(g)},${Math.round(b)})`;
 
           ctx.beginPath();
           if (shape === 'round') {
             ctx.arc(0, 0, radius, 0, Math.PI * 2);
             ctx.fill();
-          } else if (shape === 'line') {
-            const lineWidth = radius * 1.1;
-            ctx.fillRect(-cellSize / 2, -lineWidth / 2, cellSize, lineWidth);
-          }
-          ctx.restore();
-        }
-      }
-    }
-
-  // --- 5. DIFUSIÓN / GRANO REAL ---
-  } else if (currentMethod === 'diffusion') {
-    const imgW = canvas.width;
-    const imgH = canvas.height;
-    
-    const outputData = ctx.createImageData(imgW, imgH);
-    const outPx = outputData.data;
-
-    for (let y = 0; y < imgH; y++) {
-      for (let x = 0; x < imgW; x++) {
-        const idx = (y * imgW + x) * 4;
-
-        if (data[idx + 3] < 20 || (data[idx] < 25 && data[idx + 1] < 25 && data[idx + 2] < 25)) {
-          outPx[idx + 3] = 0; // Transparente real
-          continue;
-        }
-
-        let origR = adjustChannel(data[idx], blackPoint, whitePoint, gamma);
-        let origG = adjustChannel(data[idx+1], blackPoint, whitePoint, gamma);
-        let origB = adjustChannel(data[idx+2], blackPoint, whitePoint, gamma);
-
-        outPx[idx] = Math.round(origR);
-        outPx[idx + 1] = Math.round(origG);
-        outPx[idx + 2] = Math.round(origB);
-        outPx[idx + 3] = 255;
-      }
-    }
-    ctx.putImageData(outputData, 0, 0);
-
-  // --- 6. TRAMADO ESTÁNDAR (REJILLA CUADRADA) ---
-  } else {
-    for (let y = 0; y < canvas.height; y += cellSize) {
-      for (let x = 0; x < canvas.width; x += cellSize) {
-        const cx = x + cellSize / 2;
-        const cy = y + cellSize / 2;
-
-        const sampleX = Math.min(Math.max(Math.floor(cx), 0), canvas.width - 1);
-        const sampleY = Math.min(Math.max(Math.floor(cy), 0), canvas.height - 1);
-        const idx = (sampleY * canvas.width + sampleX) * 4;
-
-        if (data[idx + 3] < 20) continue;
-
-        let origR = adjustChannel(data[idx], blackPoint, whitePoint, gamma);
-        let origG = adjustChannel(data[idx+1], blackPoint, whitePoint, gamma);
-        let origB = adjustChannel(data[idx+2], blackPoint, whitePoint, gamma);
-
-        if (origR < 25 && origG < 25 && origB < 25) continue; 
-
-        let luma = 0.299 * origR + 0.587 * origG + 0.114 * origB;
-        let darkness = 1 - (luma / 255);
-        let radius = darkness * (cellSize * 0.85);
-
-        if (radius > 0.4) {
-          ctx.save();
-          ctx.translate(cx, cy);
-          ctx.rotate(angleRad);
-          ctx.fillStyle = `rgb(${Math.round(origR)},${Math.round(origG)},${Math.round(origB)})`;
-
-          ctx.beginPath();
-          if (shape === 'round') {
-            ctx.arc(0, 0, radius, 0, Math.PI * 2);
-            ctx.fill();
-          } else if (shape === 'line') {
-            const lineWidth = radius * 1.5;
-            ctx.fillRect(-cellSize / 2, -lineWidth / 2, cellSize, lineWidth);
+          } else {
+            ctx.fillRect(-cellSize / 2, -radius / 2, cellSize, radius);
           }
           ctx.restore();
         }
