@@ -9,42 +9,35 @@
 <body>
 
   <div class="container">
-    <!-- Logo y Título Legacy -->
     <div class="brand-header">
       <img src="LEGACY%20AR.png" alt="Legacy Logo" class="logo-img">
       <h1>SEMITONOS LEGACY</h1>
-      <p class="subtitle">Conversor profesional de semitonos y difusión a 300 DPI para DTF y Serigrafía</p>
+      <p class="subtitle">Conversor profesional de semitonos y patrones a 300 DPI para DTF y Serigrafía</p>
     </div>
     
     <div class="controls">
-      <!-- 1. SELECCIONAR IMAGEN (Asegurado arriba del todo) -->
+      <!-- Cargar Imagen -->
       <div class="control-group" style="grid-column: 1 / -1; background: #1f2833; padding: 12px; border-radius: 8px; border: 1px solid #45a29e;">
         <label for="imageInput" style="font-weight: bold; color: #66fcf1; margin-bottom: 5px; display: block;">📂 Seleccionar Imagen:</label>
         <input type="file" id="imageInput" accept="image/*" style="width: 100%; color: #fff;">
       </div>
 
-      <!-- Modo de Color -->
+      <!-- Método de Tramado / Patrón -->
       <div class="control-group">
-        <label for="colorModeSelect">Modo de Color:</label>
-        <select id="colorModeSelect">
-          <option value="color">A Color (Mantiene colores originales)</option>
-          <option value="monochrome">Monocromático / Tinta Única</option>
-        </select>
-      </div>
-
-      <!-- Método de Tramado -->
-      <div class="control-group">
-        <label for="methodSelect">Método de Tramado:</label>
+        <label for="methodSelect">Método de Tramado / Patrón:</label>
         <select id="methodSelect">
-          <option value="standard">Tramado Estándar (Rejilla)</option>
-          <option value="stochastic_fade">Difuminado Orgánico (DTF sin malla)</option>
-          <option value="diffusion">Difusión (Textura tipo grano / Floyd-Steinberg)</option>
+          <option value="standard">1. Rejilla Cuadrada (Estándar)</option>
+          <option value="hexagonal">2. Tramado Hexagonal (Panal Intercalado)</option>
+          <option value="lines">3. Líneas de Grabado (Efecto Billete)</option>
+          <option value="concentric">4. Anillos Concéntricos (Ondas)</option>
+          <option value="stochastic_fade">5. Difuminado Orgánico (DTF sin malla)</option>
+          <option value="diffusion">6. Difusión / Grano Real</option>
         </select>
       </div>
 
-      <!-- Frecuencia de Pantalla (LPI) -->
+      <!-- Frecuencia / Tamaño de Trama (LPI) -->
       <div class="control-group">
-        <label for="screenLpi">Frecuencia de Pantalla (LPI): <span id="lpiVal">30</span></label>
+        <label for="screenLpi">Densidad / LPI: <span id="lpiVal">30</span></label>
         <div style="display: flex; gap: 8px; align-items: center;">
           <input type="range" id="screenLpi" min="5" max="100" value="30" style="flex: 1;">
           <button type="button" onclick="resetInput('screenLpi', 30)" class="reset-btn">↺</button>
@@ -53,7 +46,7 @@
 
       <!-- Ángulo de Pantalla -->
       <div class="control-group">
-        <label for="screenAngle">Ángulo de Pantalla (°): <span id="angleVal">22.5</span></label>
+        <label for="screenAngle">Ángulo (°): <span id="angleVal">22.5</span></label>
         <div style="display: flex; gap: 8px; align-items: center;">
           <input type="range" id="screenAngle" min="0" max="90" step="0.5" value="22.5" style="flex: 1;">
           <button type="button" onclick="resetInput('screenAngle', 22.5)" class="reset-btn">↺</button>
@@ -69,35 +62,22 @@
         </select>
       </div>
 
-      <!-- Selector de Canales / Colores a Tramar -->
-      <div style="display: flex; gap: 8px; flex-wrap: wrap; grid-column: 1 / -1;" id="colorFilterGroup">
-        <button type="button" class="color-filter-btn active" data-color="all">Todos</button>
-        <button type="button" class="color-filter-btn" data-color="black">Negro</button>
-        <button type="button" class="color-filter-btn" data-color="red">Rojo</button>
-        <button type="button" class="color-filter-btn" data-color="green">Verde</button>
-        <button type="button" class="color-filter-btn" data-color="blue">Azul</button>
-        <button type="button" class="color-filter-btn" data-color="yellow">Amarillo</button>
-        <button type="button" class="color-filter-btn" data-color="pink">Rosa</button>
-        <button type="button" class="color-filter-btn" data-color="white">Blanco</button>
-      </div>
-      
-      <!-- Botón de Acceso Directo para Prenda Negra -->
+      <!-- Selector Rápido para Franela Negra / Blanca -->
       <div class="control-group" style="grid-column: 1 / -1; border-top: 1px solid #333; padding-top: 15px; margin-top: 5px;">
-        <button type="button" id="darkGarmentPresetBtn" style="width: 100%; padding: 10px; background: #0b0c10; color: #ffffff; border: 2px solid #90a4ae; border-radius: 6px; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;">
-          <span>👕</span> Activar Modo Prenda Negra (Invertir + Blanco Base)
+        <button type="button" id="darkGarmentPresetBtn" style="width: 100%; padding: 12px; background: #0b0c10; color: #ffffff; border: 2px solid #90a4ae; border-radius: 6px; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 15px;">
+          <span>👕</span> Cambiar Modo: Franela Blanca ⇄ Franela Negra
         </button>
       </div>
 
-      <!-- Modo de Salida: Invertir para prenda oscura -->
+      <!-- Casilla Invertir Manual -->
       <div class="control-group" style="grid-column: 1 / -1; border-top: 1px solid #333; padding-top: 10px; margin-top: 5px;">
         <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; color: #e0e0e0;">
           <input type="checkbox" id="invertToggle"> 
-          <strong>Invertir para prenda oscura (Invert for Dark Garment)</strong>
+          <strong>Invertir colores (Modo Franela Negra / Oscura)</strong>
         </label>
-        <small style="color: #888; margin-top: 2px; display: block;">Invierte los tonos para imprimir con tinta clara sobre fondo oscuro.</small>
       </div>
 
-      <!-- Recorte Automático de Fondo Negro -->
+      <!-- Recorte Automático -->
       <div class="control-group" style="grid-column: 1 / -1; border-top: 1px solid #333; padding-top: 10px; margin-top: 5px;">
         <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; color: #e0e0e0;">
           <input type="checkbox" id="cropBgToggle"> 
@@ -105,9 +85,8 @@
         </label>
       </div>
 
-      <!-- Umbral de Recorte -->
       <div class="control-group" id="cropThresholdGroup" style="opacity: 0.5; pointer-events: none;">
-        <label for="cropThreshold">Umbral de Recorte (0 - 255): <span id="cropThresholdValue">20</span></label>
+        <label for="cropThreshold">Umbral de Recorte: <span id="cropThresholdValue">20</span></label>
         <input type="range" id="cropThreshold" min="0" max="255" value="20">
       </div>
 
@@ -116,27 +95,24 @@
         <strong style="margin-bottom: 8px; display: block; color: #cfd9df;">Curva de Tono (Niveles)</strong>
       </div>
 
-      <!-- Punto Negro -->
       <div class="control-group">
-        <label for="blackPoint">Punto Negro (0 - 255): <span id="blackPointVal">0</span></label>
+        <label for="blackPoint">Punto Negro: <span id="blackPointVal">0</span></label>
         <div style="display: flex; gap: 8px; align-items: center;">
           <input type="range" id="blackPoint" min="0" max="255" value="0" style="flex: 1;">
           <button type="button" onclick="resetInput('blackPoint', 0)" class="reset-btn">↺</button>
         </div>
       </div>
 
-      <!-- Punto Blanco -->
       <div class="control-group">
-        <label for="whitePoint">Punto Blanco (0 - 255): <span id="whitePointVal">255</span></label>
+        <label for="whitePoint">Punto Blanco: <span id="whitePointVal">255</span></label>
         <div style="display: flex; gap: 8px; align-items: center;">
           <input type="range" id="whitePoint" min="0" max="255" value="255" style="flex: 1;">
           <button type="button" onclick="resetInput('whitePoint', 255)" class="reset-btn">↺</button>
         </div>
       </div>
 
-      <!-- Gamma -->
       <div class="control-group">
-        <label for="gammaInput">Gamma (0.1 - 3.0): <span id="gammaVal">1.00</span></label>
+        <label for="gammaInput">Gamma: <span id="gammaVal">1.00</span></label>
         <div style="display: flex; gap: 8px; align-items: center;">
           <input type="range" id="gammaInput" min="0.1" max="3.0" step="0.05" value="1.0" style="flex: 1;">
           <button type="button" onclick="resetInput('gammaInput', 1.0)" class="reset-btn">↺</button>
@@ -144,7 +120,7 @@
       </div>
     </div>
 
-    <!-- Controles de Zoom para la Previsualización -->
+    <!-- Controles de Zoom -->
     <div style="display: flex; justify-content: space-between; align-items: center; margin: 15px 0 5px 0; background: #1f2833; padding: 10px; border-radius: 6px;">
       <span style="color: #66fcf1; font-weight: bold; font-size: 14px;">🔍 Zoom de Vista Previa: <span id="zoomVal">100%</span></span>
       <div style="display: flex; gap: 8px;">
@@ -156,7 +132,7 @@
 
     <button id="downloadBtn" class="btn" disabled>Descargar Imagen (300 DPI)</button>
 
-    <!-- Área de Vista Previa con Scroll -->
+    <!-- Vista Previa -->
     <div class="preview-area" style="width: 100%; height: 500px; overflow: auto; background: #0b0c10; border: 2px dashed #45a29e; border-radius: 8px; position: relative; display: flex; align-items: center; justify-content: center;">
       <canvas id="canvas" style="transform-origin: center center; display: block;"></canvas>
     </div>
