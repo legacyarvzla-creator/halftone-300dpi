@@ -223,7 +223,7 @@ function processHalftone() {
   canvas.width = sourceToProcess.width;
   canvas.height = sourceToProcess.height;
 
-  // CANVAS TRANSPARENTE REAL (PNG SIN FONDO)
+  // Fondo transparente real para PNG
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
   const tempCanvas = document.createElement('canvas');
@@ -243,7 +243,7 @@ function processHalftone() {
   
   const cellSize = Math.max(3, Math.round(180 / lpi));
 
-  // --- 1. DIFUSIÓN / GRANO REAL ORIGINAL (TU FAVORITA INTACTA) ---
+  // --- 1. DIFUSIÓN / GRANO REAL ORIGINAL (100% INTACTA) ---
   if (currentMethod === 'diffusion_original') {
     const imgW = canvas.width;
     const imgH = canvas.height;
@@ -267,12 +267,20 @@ function processHalftone() {
     }
     ctx.putImageData(outputData, 0, 0);
 
-  // --- 2. DIFUSIÓN / GRANO AJUSTABLE (MODULADO POR DENSIDAD LPI) ---
+  // --- 2. NUEVA DIFUSIÓN / GRANO AJUSTABLE POR LPI (GRANO FINO O GRUESO CON COLOR PURO) ---
   } else if (currentMethod === 'diffusion_variable') {
-    const step = Math.max(1, Math.round(50 / lpi));
-    for (let y = 0; y < canvas.height; y += step) {
-      for (let x = 0; x < canvas.width; x += step) {
-        const idx = (y * canvas.width + x) * 4;
+    // El LPI controla el tamaño del punto de difusión orgánico
+    const dotStep = Math.max(1, Math.round(40 / lpi)); 
+    
+    for (let y = 0; y < canvas.height; y += dotStep) {
+      for (let x = 0; x < canvas.width; x += dotStep) {
+        // Ligera aleatoriedad orgánica para mantener textura de grano
+        const jitterX = x + (Math.random() - 0.5) * dotStep;
+        const jitterY = y + (Math.random() - 0.5) * dotStep;
+
+        const sampleX = Math.min(Math.max(Math.floor(jitterX), 0), canvas.width - 1);
+        const sampleY = Math.min(Math.max(Math.floor(jitterY), 0), canvas.height - 1);
+        const idx = (sampleY * canvas.width + sampleX) * 4;
 
         if (data[idx + 3] < 20 || (data[idx] < 25 && data[idx + 1] < 25 && data[idx + 2] < 25)) continue;
 
@@ -281,11 +289,18 @@ function processHalftone() {
         let b = adjustChannel(data[idx+2], blackPoint, whitePoint, gamma);
 
         ctx.fillStyle = `rgb(${Math.round(r)},${Math.round(g)},${Math.round(b)})`;
-        ctx.fillRect(x, y, step, step);
+        
+        if (shape === 'round') {
+          ctx.beginPath();
+          ctx.arc(jitterX, jitterY, dotStep * 0.55, 0, Math.PI * 2);
+          ctx.fill();
+        } else {
+          ctx.fillRect(jitterX - dotStep/2, jitterY - dotStep/2, dotStep, dotStep);
+        }
       }
     }
 
-  // --- 3. REJILLA CUADRADA A COLOR REAL ---
+  // --- 3. REJILLA CUADRADA CON DEGRADADO SUAVE Y BLANCO SÓLIDO ---
   } else if (currentMethod === 'standard') {
     for (let y = 0; y < canvas.height; y += cellSize) {
       for (let x = 0; x < canvas.width; x += cellSize) {
@@ -296,16 +311,24 @@ function processHalftone() {
         const sampleY = Math.min(Math.max(Math.floor(cy), 0), canvas.height - 1);
         const idx = (sampleY * canvas.width + sampleX) * 4;
 
-        if (data[idx + 3] < 20 || (data[idx] < 25 && data[idx+1] < 25 && data[idx+2] < 25)) continue;
+        if (data[idx + 3] < 20) continue;
 
         let r = adjustChannel(data[idx], blackPoint, whitePoint, gamma);
         let g = adjustChannel(data[idx+1], blackPoint, whitePoint, gamma);
         let b = adjustChannel(data[idx+2], blackPoint, whitePoint, gamma);
 
-        let luma = 0.299 * r + 0.587 * g + 0.114 * b;
-        let radius = (luma / 255) * (cellSize * 0.45);
+        if (r < 15 && g < 15 && b < 15) continue;
 
-        if (radius > 0.3) {
+        if (r > 230 && g > 230 && b > 230) {
+          ctx.fillStyle = `rgb(${Math.round(r)},${Math.round(g)},${Math.round(b)})`;
+          ctx.fillRect(x, y, cellSize, cellSize);
+          continue;
+        }
+
+        let luma = 0.299 * r + 0.587 * g + 0.114 * b;
+        let radius = (luma / 255) * (cellSize * 0.58);
+
+        if (radius > 0.2) {
           ctx.save();
           ctx.translate(cx, cy);
           ctx.rotate(angleRad);
@@ -316,14 +339,15 @@ function processHalftone() {
             ctx.arc(0, 0, radius, 0, Math.PI * 2);
             ctx.fill();
           } else {
-            ctx.fillRect(-cellSize / 2, -(radius), cellSize, radius * 2);
+            const lineWidth = radius * 1.5;
+            ctx.fillRect(-cellSize / 2, -lineWidth / 2, cellSize, lineWidth);
           }
           ctx.restore();
         }
       }
     }
 
-  // --- 4. TRAMADO HEXAGONAL (PANAL A COLOR REAL) ---
+  // --- 4. TRAMADO HEXAGONAL ---
   } else if (currentMethod === 'hexagonal') {
     const rowHeight = cellSize * 0.866; 
     let rowIndex = 0;
@@ -359,7 +383,7 @@ function processHalftone() {
       rowIndex++;
     }
 
-  // --- 5. LÍNEAS DE GRABADO A COLOR REAL ---
+  // --- 5. LÍNEAS DE GRABADO ---
   } else if (currentMethod === 'lines') {
     for (let y = 0; y < canvas.height; y += cellSize) {
       for (let x = 0; x < canvas.width; x += cellSize) {
@@ -390,7 +414,7 @@ function processHalftone() {
       }
     }
 
-  // --- 6. ANILLOS CONCÉNTRICOS A COLOR REAL ---
+  // --- 6. ANILLOS CONCÉNTRICOS ---
   } else if (currentMethod === 'concentric') {
     const centerX = canvas.width / 2;
     const centerY = canvas.height / 2;
@@ -416,7 +440,7 @@ function processHalftone() {
       }
     }
 
-  // --- 7. DIFUMINADO ORGÁNICO A COLOR REAL ---
+  // --- 7. DIFUMINADO ORGÁNICO ---
   } else if (currentMethod === 'stochastic_fade') {
     for (let y = 0; y < canvas.height; y += cellSize) {
       for (let x = 0; x < canvas.width; x += cellSize) {
