@@ -23,21 +23,22 @@
       </div>
 
       <!-- Método de Tramado / Patrón -->
-      <div class="control-group">
-        <label for="methodSelect">Método de Tramado / Patrón:</label>
-        <select id="methodSelect">
-          <option value="standard">1. Rejilla Cuadrada (Estándar)</option>
-          <option value="hexagonal">2. Tramado Hexagonal (Panal Intercalado)</option>
-          <option value="lines">3. Líneas de Grabado (Efecto Billete)</option>
-          <option value="concentric">4. Anillos Concéntricos (Ondas)</option>
-          <option value="stochastic_fade">5. Difuminado Orgánico (DTF sin malla)</option>
-          <option value="diffusion">6. Difusión / Grano Real</option>
+      <div class="control-group" style="grid-column: 1 / -1;">
+        <label for="methodSelect">Método de Tramado / Patrón (Color Puro Garantizado):</label>
+        <select id="methodSelect" style="width: 100%; padding: 8px;">
+          <option value="diffusion_original">1. Difusión / Grano Real (Original - Tu Favorito)</option>
+          <option value="diffusion_variable">2. Difusión / Grano Ajustable (Por LPI)</option>
+          <option value="standard">3. Rejilla Cuadrada (Estándar a Color)</option>
+          <option value="hexagonal">4. Tramado Hexagonal (Panal a Color)</option>
+          <option value="lines">5. Líneas de Grabado (Efecto Billete a Color)</option>
+          <option value="concentric">6. Anillos Concéntricos (Ondas a Color)</option>
+          <option value="stochastic_fade">7. Difuminado Orgánico (DTF sin malla)</option>
         </select>
       </div>
 
       <!-- Frecuencia / Tamaño de Trama (LPI) -->
       <div class="control-group">
-        <label for="screenLpi">Densidad / LPI: <span id="lpiVal">30</span></label>
+        <label for="screenLpi">Densidad / LPI (Tamaño de Grano / Punto): <span id="lpiVal">30</span></label>
         <div style="display: flex; gap: 8px; align-items: center;">
           <input type="range" id="screenLpi" min="5" max="100" value="30" style="flex: 1;">
           <button type="button" onclick="resetInput('screenLpi', 30)" class="reset-btn">↺</button>
@@ -117,7 +118,7 @@
 
     <button id="downloadBtn" class="btn" disabled>Descargar Imagen (300 DPI - Transparente)</button>
 
-    <!-- Vista Previa con patrón ajedrezado visual para notar la transparencia -->
+    <!-- Vista Previa con fondo ajedrezado para transparente -->
     <div class="preview-area" style="width: 100%; height: 500px; overflow: auto; background: #111; background-image: linear-gradient(45deg, #181818 25%, transparent 25%), linear-gradient(-45deg, #181818 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #181818 75%), linear-gradient(-45deg, transparent 75%, #181818 75%); background-size: 20px 20px; background-position: 0 0, 0 10px, 10px -10px, -10px 0px; border: 2px dashed #45a29e; border-radius: 8px; position: relative; display: flex; align-items: center; justify-content: center;">
       <canvas id="canvas" style="transform-origin: center center; display: block;"></canvas>
     </div>
