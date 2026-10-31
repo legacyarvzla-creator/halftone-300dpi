@@ -12,7 +12,7 @@
     <div class="brand-header">
       <img src="LEGACY%20AR.png" alt="Legacy Logo" class="logo-img">
       <h1>SEMITONOS LEGACY</h1>
-      <p class="subtitle">Conversor profesional de semitonos y patrones a 300 DPI para DTF y Serigrafía</p>
+      <p class="subtitle">Conversor profesional de semitonos y patrones a 300 DPI (Fondo Transparente PNG)</p>
     </div>
     
     <div class="controls">
@@ -20,15 +20,6 @@
       <div class="control-group" style="grid-column: 1 / -1; background: #1f2833; padding: 12px; border-radius: 8px; border: 1px solid #45a29e;">
         <label for="imageInput" style="font-weight: bold; color: #66fcf1; margin-bottom: 5px; display: block;">📂 Seleccionar Imagen:</label>
         <input type="file" id="imageInput" accept="image/*" style="width: 100%; color: #fff;">
-      </div>
-
-      <!-- Tipo de Prenda / Fondo -->
-      <div class="control-group">
-        <label for="garmentType">Tipo de Prenda (Fondo):</label>
-        <select id="garmentType">
-          <option value="white">Franela Blanca (Fondo Blanco)</option>
-          <option value="black">Franela Negra / Oscura (Fondo Negro)</option>
-        </select>
       </div>
 
       <!-- Método de Tramado / Patrón -->
@@ -124,10 +115,10 @@
       </div>
     </div>
 
-    <button id="downloadBtn" class="btn" disabled>Descargar Imagen (300 DPI)</button>
+    <button id="downloadBtn" class="btn" disabled>Descargar Imagen (300 DPI - Transparente)</button>
 
-    <!-- Vista Previa -->
-    <div class="preview-area" style="width: 100%; height: 500px; overflow: auto; background: #0b0c10; border: 2px dashed #45a29e; border-radius: 8px; position: relative; display: flex; align-items: center; justify-content: center;">
+    <!-- Vista Previa con patrón ajedrezado visual para notar la transparencia -->
+    <div class="preview-area" style="width: 100%; height: 500px; overflow: auto; background: #111; background-image: linear-gradient(45deg, #181818 25%, transparent 25%), linear-gradient(-45deg, #181818 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #181818 75%), linear-gradient(-45deg, transparent 75%, #181818 75%); background-size: 20px 20px; background-position: 0 0, 0 10px, 10px -10px, -10px 0px; border: 2px dashed #45a29e; border-radius: 8px; position: relative; display: flex; align-items: center; justify-content: center;">
       <canvas id="canvas" style="transform-origin: center center; display: block;"></canvas>
     </div>
   </div>
