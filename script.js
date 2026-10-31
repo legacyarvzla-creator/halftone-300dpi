@@ -1,11 +1,11 @@
 const imageInput = document.getElementById('imageInput');
+const garmentTypeSelect = document.getElementById('garmentType');
 const methodSelect = document.getElementById('methodSelect');
 const screenLpiInput = document.getElementById('screenLpi');
 const lpiVal = document.getElementById('lpiVal');
 const screenAngleInput = document.getElementById('screenAngle');
 const angleVal = document.getElementById('angleVal');
 const dotShapeSelect = document.getElementById('dotShape');
-const invertToggle = document.getElementById('invertToggle');
 const downloadBtn = document.getElementById('downloadBtn');
 
 const cropBgToggle = document.getElementById('cropBgToggle');
@@ -94,11 +94,11 @@ if (cropThresholdInput) {
   });
 }
 
+if (garmentTypeSelect) garmentTypeSelect.addEventListener('change', () => { if (loadedImage) processHalftone(); });
 if (screenLpiInput) screenLpiInput.addEventListener('input', () => { if (lpiVal) lpiVal.textContent = screenLpiInput.value; if (loadedImage) processHalftone(); });
 if (screenAngleInput) screenAngleInput.addEventListener('input', () => { if (angleVal) angleVal.textContent = screenAngleInput.value; if (loadedImage) processHalftone(); });
 if (methodSelect) methodSelect.addEventListener('change', () => { if (loadedImage) processHalftone(); });
 if (dotShapeSelect) dotShapeSelect.addEventListener('change', () => { if (loadedImage) processHalftone(); });
-if (invertToggle) invertToggle.addEventListener('change', () => { if (loadedImage) processHalftone(); });
 if (blackPointInput) blackPointInput.addEventListener('input', () => { if (blackPointVal) blackPointVal.textContent = blackPointInput.value; if (loadedImage) processHalftone(); });
 if (whitePointInput) whitePointInput.addEventListener('input', () => { if (whitePointVal) whitePointVal.textContent = whitePointInput.value; if (loadedImage) processHalftone(); });
 if (gammaInput) gammaInput.addEventListener('input', () => { if (gammaVal) gammaVal.textContent = parseFloat(gammaInput.value).toFixed(2); if (loadedImage) processHalftone(); });
@@ -225,10 +225,10 @@ function processHalftone() {
   canvas.width = sourceToProcess.width;
   canvas.height = sourceToProcess.height;
 
-  const isInverted = invertToggle ? invertToggle.checked : false;
+  const isDarkGarment = garmentTypeSelect ? garmentTypeSelect.value === 'black' : false;
 
-  // Fondo dinámico según la franela: Negro para franela blanca / Blanco para franela negra
-  ctx.fillStyle = isInverted ? '#ffffff' : '#000000';
+  // Fondo limpio: Blanco para franela blanca / Negro para franela negra
+  ctx.fillStyle = isDarkGarment ? '#000000' : '#ffffff';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
   const tempCanvas = document.createElement('canvas');
@@ -264,16 +264,16 @@ function processHalftone() {
 
         if (data[idx + 3] < 20) continue;
         let origR = data[idx], origG = data[idx+1], origB = data[idx+2];
-        if (!isInverted && origR < 25 && origG < 25 && origB < 25) continue; 
+        if (isDarkGarment && origR < 25 && origG < 25 && origB < 25) continue; 
 
         origR = adjustChannel(origR, blackPoint, whitePoint, gamma);
         origG = adjustChannel(origG, blackPoint, whitePoint, gamma);
         origB = adjustChannel(origB, blackPoint, whitePoint, gamma);
 
-        if (isInverted) { origR = 255 - origR; origG = 255 - origG; origB = 255 - origB; }
+        if (isDarkGarment) { origR = 255 - origR; origG = 255 - origG; origB = 255 - origB; }
 
         let luma = 0.299 * origR + 0.587 * origG + 0.114 * origB;
-        let darkness = 1 - (luma / 255);
+        let darkness = isDarkGarment ? (1 - (luma / 255)) : (luma / 255);
         let radius = darkness * (cellSize * 0.55);
 
         if (radius > 0.3) {
@@ -302,16 +302,16 @@ function processHalftone() {
 
         if (data[idx + 3] < 20) continue;
         let origR = data[idx], origG = data[idx+1], origB = data[idx+2];
-        if (!isInverted && origR < 25 && origG < 25 && origB < 25) continue; 
+        if (isDarkGarment && origR < 25 && origG < 25 && origB < 25) continue; 
 
         origR = adjustChannel(origR, blackPoint, whitePoint, gamma);
         origG = adjustChannel(origG, blackPoint, whitePoint, gamma);
         origB = adjustChannel(origB, blackPoint, whitePoint, gamma);
 
-        if (isInverted) { origR = 255 - origR; origG = 255 - origG; origB = 255 - origB; }
+        if (isDarkGarment) { origR = 255 - origR; origG = 255 - origG; origB = 255 - origB; }
 
         let luma = 0.299 * origR + 0.587 * origG + 0.114 * origB;
-        let darkness = 1 - (luma / 255);
+        let darkness = isDarkGarment ? (1 - (luma / 255)) : (luma / 255);
         let lineHeight = darkness * cellSize;
 
         if (lineHeight > 0.4) {
@@ -336,19 +336,19 @@ function processHalftone() {
         if (data[idx + 3] < 20) continue;
 
         let origR = data[idx], origG = data[idx+1], origB = data[idx+2];
-        if (!isInverted && origR < 25 && origG < 25 && origB < 25) continue;
+        if (isDarkGarment && origR < 25 && origG < 25 && origB < 25) continue;
 
         origR = adjustChannel(origR, blackPoint, whitePoint, gamma);
         origG = adjustChannel(origG, blackPoint, whitePoint, gamma);
         origB = adjustChannel(origB, blackPoint, whitePoint, gamma);
 
-        if (isInverted) { origR = 255 - origR; origG = 255 - origG; origB = 255 - origB; }
+        if (isDarkGarment) { origR = 255 - origR; origG = 255 - origG; origB = 255 - origB; }
 
         let dist = Math.sqrt((x - centerX) ** 2 + (y - centerY) ** 2);
         let wave = Math.sin(dist / (cellSize * 0.4));
 
         let luma = 0.299 * origR + 0.587 * origG + 0.114 * origB;
-        let threshold = (luma / 255) * 2 - 1;
+        let threshold = isDarkGarment ? ((luma / 255) * 2 - 1) : (1 - (luma / 255) * 2);
 
         if (wave > threshold) {
           ctx.fillStyle = `rgb(${origR},${origG},${origB})`;
@@ -374,17 +374,17 @@ function processHalftone() {
         if (data[idx + 3] < 20) continue;
 
         let origR = data[idx], origG = data[idx+1], origB = data[idx+2];
-        if (!isInverted && origR < 25 && origG < 25 && origB < 25) continue;
+        if (isDarkGarment && origR < 25 && origG < 25 && origB < 25) continue;
 
         origR = adjustChannel(origR, blackPoint, whitePoint, gamma);
         origG = adjustChannel(origG, blackPoint, whitePoint, gamma);
         origB = adjustChannel(origB, blackPoint, whitePoint, gamma);
 
-        if (isInverted) { origR = 255 - origR; origG = 255 - origG; origB = 255 - origB; }
+        if (isDarkGarment) { origR = 255 - origR; origG = 255 - origG; origB = 255 - origB; }
 
         let luma = 0.299 * origR + 0.587 * origG + 0.114 * origB;
-        let transitionFactor = (luma - 10) / 235; 
-        let radius = transitionFactor * (cellSize * 0.4);
+        let transitionFactor = isDarkGarment ? ((luma - 10) / 235) : (1 - (luma / 235));
+        let radius = Math.abs(transitionFactor) * (cellSize * 0.4);
 
         if (radius > 0.15) {
           ctx.save();
@@ -417,11 +417,11 @@ function processHalftone() {
       for (let x = 0; x < imgW; x++) {
         const idx = (y * imgW + x) * 4;
 
-        if (data[idx + 3] < 20 || (!isInverted && data[idx] < 25 && data[idx + 1] < 25 && data[idx + 2] < 25)) {
-          outPx[idx + 3] = isInverted ? 255 : 0;
-          outPx[idx] = isInverted ? 255 : 0;
-          outPx[idx + 1] = isInverted ? 255 : 0;
-          outPx[idx + 2] = isInverted ? 255 : 0;
+        if (data[idx + 3] < 20 || (isDarkGarment && data[idx] < 25 && data[idx + 1] < 25 && data[idx + 2] < 25)) {
+          outPx[idx + 3] = isDarkGarment ? 255 : 0;
+          outPx[idx] = isDarkGarment ? 0 : 255;
+          outPx[idx + 1] = isDarkGarment ? 0 : 255;
+          outPx[idx + 2] = isDarkGarment ? 0 : 255;
           continue;
         }
 
@@ -429,7 +429,7 @@ function processHalftone() {
         let origG = adjustChannel(data[idx+1], blackPoint, whitePoint, gamma);
         let origB = adjustChannel(data[idx+2], blackPoint, whitePoint, gamma);
 
-        if (isInverted) { origR = 255 - origR; origG = 255 - origG; origB = 255 - origB; }
+        if (isDarkGarment) { origR = 255 - origR; origG = 255 - origG; origB = 255 - origB; }
 
         outPx[idx] = origR;
         outPx[idx + 1] = origG;
@@ -453,16 +453,16 @@ function processHalftone() {
         if (data[idx + 3] < 20) continue;
 
         let origR = data[idx], origG = data[idx+1], origB = data[idx+2];
-        if (!isInverted && origR < 25 && origG < 25 && origB < 25) continue; 
+        if (isDarkGarment && origR < 25 && origG < 25 && origB < 25) continue; 
 
         origR = adjustChannel(origR, blackPoint, whitePoint, gamma);
         origG = adjustChannel(origG, blackPoint, whitePoint, gamma);
         origB = adjustChannel(origB, blackPoint, whitePoint, gamma);
 
-        if (isInverted) { origR = 255 - origR; origG = 255 - origG; origB = 255 - origB; }
+        if (isDarkGarment) { origR = 255 - origR; origG = 255 - origG; origB = 255 - origB; }
 
         let luma = 0.299 * origR + 0.587 * origG + 0.114 * origB;
-        let darkness = 1 - (luma / 255);
+        let darkness = isDarkGarment ? (1 - (luma / 255)) : (luma / 255);
         let radius = darkness * (cellSize * 0.85);
 
         if (radius > 0.4) {
@@ -567,24 +567,5 @@ if (downloadBtn) {
       downloadBtn.textContent = 'Descargar Imagen (300 DPI)';
       downloadBtn.disabled = false;
     }
-  });
-}
-
-const darkGarmentPresetBtn = document.getElementById('darkGarmentPresetBtn');
-if (darkGarmentPresetBtn) {
-  darkGarmentPresetBtn.addEventListener('click', () => {
-    if (invertToggle) invertToggle.checked = !invertToggle.checked;
-    
-    if (invertToggle && invertToggle.checked) {
-      darkGarmentPresetBtn.style.background = 'linear-gradient(135deg, #cfd9df 0%, #90a4ae 100%)';
-      darkGarmentPresetBtn.style.color = '#0b0c10';
-      darkGarmentPresetBtn.style.borderColor = '#ffffff';
-    } else {
-      darkGarmentPresetBtn.style.background = '#0b0c10';
-      darkGarmentPresetBtn.style.color = '#ffffff';
-      darkGarmentPresetBtn.style.borderColor = '#90a4ae';
-    }
-
-    if (loadedImage) processHalftone();
   });
 }
