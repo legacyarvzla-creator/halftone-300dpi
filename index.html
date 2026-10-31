@@ -22,6 +22,15 @@
         <input type="file" id="imageInput" accept="image/*" style="width: 100%; color: #fff;">
       </div>
 
+      <!-- Tipo de Prenda / Fondo (Soluciona el problema del color azul) -->
+      <div class="control-group">
+        <label for="garmentType">Tipo de Prenda (Fondo):</label>
+        <select id="garmentType">
+          <option value="white">Franela Blanca (Colores Originales / Sin Invertir)</option>
+          <option value="black">Franela Negra / Oscura (Invertido para DTF)</option>
+        </select>
+      </div>
+
       <!-- Método de Tramado / Patrón -->
       <div class="control-group">
         <label for="methodSelect">Método de Tramado / Patrón:</label>
@@ -60,21 +69,6 @@
           <option value="round">Redondo (Circular)</option>
           <option value="line">Línea (Estilo grabado)</option>
         </select>
-      </div>
-
-      <!-- Selector Rápido para Franela Negra / Blanca -->
-      <div class="control-group" style="grid-column: 1 / -1; border-top: 1px solid #333; padding-top: 15px; margin-top: 5px;">
-        <button type="button" id="darkGarmentPresetBtn" style="width: 100%; padding: 12px; background: #0b0c10; color: #ffffff; border: 2px solid #90a4ae; border-radius: 6px; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 15px;">
-          <span>👕</span> Cambiar Modo: Franela Blanca ⇄ Franela Negra
-        </button>
-      </div>
-
-      <!-- Casilla Invertir Manual -->
-      <div class="control-group" style="grid-column: 1 / -1; border-top: 1px solid #333; padding-top: 10px; margin-top: 5px;">
-        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; color: #e0e0e0;">
-          <input type="checkbox" id="invertToggle"> 
-          <strong>Invertir colores (Modo Franela Negra / Oscura)</strong>
-        </label>
       </div>
 
       <!-- Recorte Automático -->
