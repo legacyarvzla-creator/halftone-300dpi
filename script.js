@@ -267,7 +267,7 @@ function processHalftone() {
     }
     ctx.putImageData(outputData, 0, 0);
 
-  // --- 2. DIFUSIÓN / GRANO AJUSTABLE POR LPI (PUNTOS DE DIFUSIÓN SEPARADOS) ---
+  // --- 2. DIFUSIÓN / GRANO AJUSTABLE POR LPI ---
   } else if (currentMethod === 'diffusion_variable') {
     const step = Math.max(2, Math.round(180 / lpi));
     const dotSize = Math.max(1, Math.round(step * 0.45));
