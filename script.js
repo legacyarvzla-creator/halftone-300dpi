@@ -227,7 +227,7 @@ function processHalftone() {
 
   const isDarkGarment = garmentTypeSelect ? garmentTypeSelect.value === 'black' : false;
 
-  // Fondo limpio: Blanco para franela blanca / Negro para franela negra
+  // Fondo dinámico según la prenda seleccionada
   ctx.fillStyle = isDarkGarment ? '#000000' : '#ffffff';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
@@ -263,23 +263,21 @@ function processHalftone() {
         const idx = (sampleY * canvas.width + sampleX) * 4;
 
         if (data[idx + 3] < 20) continue;
-        let origR = data[idx], origG = data[idx+1], origB = data[idx+2];
+        let origR = adjustChannel(data[idx], blackPoint, whitePoint, gamma);
+        let origG = adjustChannel(data[idx+1], blackPoint, whitePoint, gamma);
+        let origB = adjustChannel(data[idx+2], blackPoint, whitePoint, gamma);
+
         if (isDarkGarment && origR < 25 && origG < 25 && origB < 25) continue; 
-
-        origR = adjustChannel(origR, blackPoint, whitePoint, gamma);
-        origG = adjustChannel(origG, blackPoint, whitePoint, gamma);
-        origB = adjustChannel(origB, blackPoint, whitePoint, gamma);
-
-        if (isDarkGarment) { origR = 255 - origR; origG = 255 - origG; origB = 255 - origB; }
+        if (!isDarkGarment && origR > 235 && origG > 235 && origB > 235) continue; 
 
         let luma = 0.299 * origR + 0.587 * origG + 0.114 * origB;
-        let darkness = isDarkGarment ? (1 - (luma / 255)) : (luma / 255);
+        let darkness = isDarkGarment ? (luma / 255) : (1 - (luma / 255));
         let radius = darkness * (cellSize * 0.55);
 
         if (radius > 0.3) {
           ctx.save();
           ctx.translate(cx, cy);
-          ctx.fillStyle = `rgb(${origR},${origG},${origB})`;
+          ctx.fillStyle = `rgb(${Math.round(origR)},${Math.round(origG)},${Math.round(origB)})`;
           ctx.beginPath();
           ctx.arc(0, 0, radius, 0, Math.PI * 2);
           ctx.fill();
@@ -301,24 +299,22 @@ function processHalftone() {
         const idx = (sampleY * canvas.width + sampleX) * 4;
 
         if (data[idx + 3] < 20) continue;
-        let origR = data[idx], origG = data[idx+1], origB = data[idx+2];
+        let origR = adjustChannel(data[idx], blackPoint, whitePoint, gamma);
+        let origG = adjustChannel(data[idx+1], blackPoint, whitePoint, gamma);
+        let origB = adjustChannel(data[idx+2], blackPoint, whitePoint, gamma);
+
         if (isDarkGarment && origR < 25 && origG < 25 && origB < 25) continue; 
-
-        origR = adjustChannel(origR, blackPoint, whitePoint, gamma);
-        origG = adjustChannel(origG, blackPoint, whitePoint, gamma);
-        origB = adjustChannel(origB, blackPoint, whitePoint, gamma);
-
-        if (isDarkGarment) { origR = 255 - origR; origG = 255 - origG; origB = 255 - origB; }
+        if (!isDarkGarment && origR > 235 && origG > 235 && origB > 235) continue; 
 
         let luma = 0.299 * origR + 0.587 * origG + 0.114 * origB;
-        let darkness = isDarkGarment ? (1 - (luma / 255)) : (luma / 255);
+        let darkness = isDarkGarment ? (luma / 255) : (1 - (luma / 255));
         let lineHeight = darkness * cellSize;
 
         if (lineHeight > 0.4) {
           ctx.save();
           ctx.translate(cx, cy);
           ctx.rotate(angleRad);
-          ctx.fillStyle = `rgb(${origR},${origG},${origB})`;
+          ctx.fillStyle = `rgb(${Math.round(origR)},${Math.round(origG)},${Math.round(origB)})`;
           ctx.fillRect(-cellSize / 2, -lineHeight / 2, cellSize, lineHeight);
           ctx.restore();
         }
@@ -335,23 +331,21 @@ function processHalftone() {
         const idx = (y * canvas.width + x) * 4;
         if (data[idx + 3] < 20) continue;
 
-        let origR = data[idx], origG = data[idx+1], origB = data[idx+2];
+        let origR = adjustChannel(data[idx], blackPoint, whitePoint, gamma);
+        let origG = adjustChannel(data[idx+1], blackPoint, whitePoint, gamma);
+        let origB = adjustChannel(data[idx+2], blackPoint, whitePoint, gamma);
+
         if (isDarkGarment && origR < 25 && origG < 25 && origB < 25) continue;
-
-        origR = adjustChannel(origR, blackPoint, whitePoint, gamma);
-        origG = adjustChannel(origG, blackPoint, whitePoint, gamma);
-        origB = adjustChannel(origB, blackPoint, whitePoint, gamma);
-
-        if (isDarkGarment) { origR = 255 - origR; origG = 255 - origG; origB = 255 - origB; }
+        if (!isDarkGarment && origR > 235 && origG > 235 && origB > 235) continue;
 
         let dist = Math.sqrt((x - centerX) ** 2 + (y - centerY) ** 2);
         let wave = Math.sin(dist / (cellSize * 0.4));
 
         let luma = 0.299 * origR + 0.587 * origG + 0.114 * origB;
-        let threshold = isDarkGarment ? ((luma / 255) * 2 - 1) : (1 - (luma / 255) * 2);
+        let threshold = isDarkGarment ? (1 - (luma / 255) * 2) : ((luma / 255) * 2 - 1);
 
         if (wave > threshold) {
-          ctx.fillStyle = `rgb(${origR},${origG},${origB})`;
+          ctx.fillStyle = `rgb(${Math.round(origR)},${Math.round(origG)},${Math.round(origB)})`;
           ctx.fillRect(x, y, 2, 2);
         }
       }
@@ -373,14 +367,12 @@ function processHalftone() {
 
         if (data[idx + 3] < 20) continue;
 
-        let origR = data[idx], origG = data[idx+1], origB = data[idx+2];
+        let origR = adjustChannel(data[idx], blackPoint, whitePoint, gamma);
+        let origG = adjustChannel(data[idx+1], blackPoint, whitePoint, gamma);
+        let origB = adjustChannel(data[idx+2], blackPoint, whitePoint, gamma);
+
         if (isDarkGarment && origR < 25 && origG < 25 && origB < 25) continue;
-
-        origR = adjustChannel(origR, blackPoint, whitePoint, gamma);
-        origG = adjustChannel(origG, blackPoint, whitePoint, gamma);
-        origB = adjustChannel(origB, blackPoint, whitePoint, gamma);
-
-        if (isDarkGarment) { origR = 255 - origR; origG = 255 - origG; origB = 255 - origB; }
+        if (!isDarkGarment && origR > 235 && origG > 235 && origB > 235) continue;
 
         let luma = 0.299 * origR + 0.587 * origG + 0.114 * origB;
         let transitionFactor = isDarkGarment ? ((luma - 10) / 235) : (1 - (luma / 235));
@@ -390,7 +382,7 @@ function processHalftone() {
           ctx.save();
           ctx.translate(cx, cy);
           ctx.rotate(angleRad);
-          ctx.fillStyle = `rgb(${origR},${origG},${origB})`;
+          ctx.fillStyle = `rgb(${Math.round(origR)},${Math.round(origG)},${Math.round(origB)})`;
 
           ctx.beginPath();
           if (shape === 'round') {
@@ -429,11 +421,9 @@ function processHalftone() {
         let origG = adjustChannel(data[idx+1], blackPoint, whitePoint, gamma);
         let origB = adjustChannel(data[idx+2], blackPoint, whitePoint, gamma);
 
-        if (isDarkGarment) { origR = 255 - origR; origG = 255 - origG; origB = 255 - origB; }
-
-        outPx[idx] = origR;
-        outPx[idx + 1] = origG;
-        outPx[idx + 2] = origB;
+        outPx[idx] = Math.round(origR);
+        outPx[idx + 1] = Math.round(origG);
+        outPx[idx + 2] = Math.round(origB);
         outPx[idx + 3] = 255;
       }
     }
@@ -452,24 +442,22 @@ function processHalftone() {
 
         if (data[idx + 3] < 20) continue;
 
-        let origR = data[idx], origG = data[idx+1], origB = data[idx+2];
+        let origR = adjustChannel(data[idx], blackPoint, whitePoint, gamma);
+        let origG = adjustChannel(data[idx+1], blackPoint, whitePoint, gamma);
+        let origB = adjustChannel(data[idx+2], blackPoint, whitePoint, gamma);
+
         if (isDarkGarment && origR < 25 && origG < 25 && origB < 25) continue; 
-
-        origR = adjustChannel(origR, blackPoint, whitePoint, gamma);
-        origG = adjustChannel(origG, blackPoint, whitePoint, gamma);
-        origB = adjustChannel(origB, blackPoint, whitePoint, gamma);
-
-        if (isDarkGarment) { origR = 255 - origR; origG = 255 - origG; origB = 255 - origB; }
+        if (!isDarkGarment && origR > 235 && origG > 235 && origB > 235) continue; 
 
         let luma = 0.299 * origR + 0.587 * origG + 0.114 * origB;
-        let darkness = isDarkGarment ? (1 - (luma / 255)) : (luma / 255);
+        let darkness = isDarkGarment ? (luma / 255) : (1 - (luma / 255));
         let radius = darkness * (cellSize * 0.85);
 
         if (radius > 0.4) {
           ctx.save();
           ctx.translate(cx, cy);
           ctx.rotate(angleRad);
-          ctx.fillStyle = `rgb(${origR},${origG},${origB})`;
+          ctx.fillStyle = `rgb(${Math.round(origR)},${Math.round(origG)},${Math.round(origB)})`;
 
           ctx.beginPath();
           if (shape === 'round') {
