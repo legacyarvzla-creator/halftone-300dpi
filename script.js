@@ -397,8 +397,9 @@ function processHalftone() {
       }
     }
 
-  // --- 8. HÍBRIDO LEGACY (AZUL INTENSO DE TU FAVORITO + MICROPUNTOS DE CÓMIC) ---
+  // --- 8. HÍBRIDO LEGACY (SÓLIDOS EN ZONAS INTENSAS + TRAMA FINITA DE PUNTOS EN DEGRADADOS) ---
   } else if (currentMethod === 'hybrid_legacy') {
+    // 1. Cargamos la imagen base completa para mantener los sólidos y el color profundo original
     ctx.drawImage(loadedImage, 0, 0);
     const tempCanvas = document.createElement('canvas');
     tempCanvas.width = loadedImage.width;
@@ -407,10 +408,10 @@ function processHalftone() {
     tempCtx.drawImage(loadedImage, 0, 0);
     const data = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height).data;
 
-    // 1. Base sólida intacta: Traje blanco y letras verdes
     const outImgData = ctx.createImageData(canvas.width, canvas.height);
     const outPx = outImgData.data;
 
+    // Primer paso: Preservar traje blanco, letras verdes Y vetas/zonas de azul sólido intenso
     for (let i = 0; i < data.length; i += 4) {
       if (data[i + 3] < 20) continue;
 
@@ -420,8 +421,10 @@ function processHalftone() {
 
       let isWhite = (r > 180 && g > 180 && b > 180);
       let isGreenText = (g > r + 30 && g > b + 30);
+      // Las zonas muy densas/intensas de azul se quedan como sólido puro
+      let isSolidBlue = (b > 120 && b > r + 40 && (r + g + b) / 3 > 90);
 
-      if (isWhite || isGreenText) {
+      if (isWhite || isGreenText || isSolidBlue) {
         outPx[i] = r;
         outPx[i+1] = g;
         outPx[i+2] = b;
@@ -430,8 +433,8 @@ function processHalftone() {
     }
     ctx.putImageData(outImgData, 0, 0);
 
-    // 2. Nebulosa: Mantenemos la riqueza de color exacto de tu favorito, pero aplicando micropuntos ordenados
-    const fineStep = Math.max(2, Math.round(cellSize * 0.45)); // Puntos muy finos estilo cómic
+    // Segundo paso: Aplicar la trama finita de puntos de cómic únicamente en las zonas de degradado/transición
+    const fineStep = Math.max(3, Math.round(cellSize * 0.6));
 
     for (let y = 0; y < canvas.height; y += fineStep) {
       for (let x = 0; x < canvas.width; x += fineStep) {
@@ -451,23 +454,28 @@ function processHalftone() {
 
         let isWhite = (r > 180 && g > 180 && b > 180);
         let isGreenText = (g > r + 30 && g > b + 30);
+        let isSolidBlue = (b > 120 && b > r + 40 && (r + g + b) / 3 > 90);
 
-        if (isWhite || isGreenText) continue;
+        // Si ya es parte de los sólidos, no ponemos puntos encima
+        if (isWhite || isGreenText || isSolidBlue) continue;
 
         let luma = 0.299 * r + 0.587 * g + 0.114 * b;
-        // Combinamos la densidad de puntos con la luminancia para mantener el color azul profundo y vibrante
-        let dotRadius = (luma / 255) * (fineStep * 0.75);
+        let radius = (luma / 255) * (fineStep * 0.6);
 
-        if (dotRadius > 0.3) {
+        if (radius > 0.2) {
           ctx.save();
           ctx.translate(cx, cy);
           ctx.rotate(angleRad);
-          // Usamos el color RGB original enriquecido tal cual tu método favorito
           ctx.fillStyle = `rgb(${Math.round(r)},${Math.round(g)},${Math.round(b)})`;
 
           ctx.beginPath();
-          ctx.arc(0, 0, dotRadius, 0, Math.PI * 2);
-          ctx.fill();
+          if (shape === 'round') {
+            ctx.arc(0, 0, radius, 0, Math.PI * 2);
+            ctx.fill();
+          } else {
+            const lineWidth = radius * 1.5;
+            ctx.fillRect(-fineStep / 2, -lineWidth / 2, fineStep, lineWidth);
+          }
           ctx.restore();
         }
       }
