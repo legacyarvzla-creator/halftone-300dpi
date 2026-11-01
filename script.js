@@ -223,6 +223,9 @@ function processHalftone() {
   canvas.width = sourceToProcess.width;
   canvas.height = sourceToProcess.height;
 
+  // Limpiar lienzo inicial
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
   const blackPoint = parseInt(blackPointInput ? blackPointInput.value : 0, 10);
   const whitePoint = parseInt(whitePointInput ? whitePointInput.value : 255, 10);
   const gamma = parseFloat(gammaInput ? gammaInput.value : 1.0);
@@ -233,7 +236,7 @@ function processHalftone() {
   
   const cellSize = Math.max(3, Math.round(180 / lpi));
 
-  // --- 1. DIFUSIÓN / GRANO REAL ORIGINAL (100% INTACTA) ---
+  // --- 1. DIFUSIÓN / GRANO REAL ORIGINAL ---
   if (currentMethod === 'diffusion_original') {
     const tempCanvas = document.createElement('canvas');
     tempCanvas.width = sourceToProcess.width;
@@ -264,7 +267,6 @@ function processHalftone() {
 
   // --- 2. DIFUSIÓN / GRANO AJUSTABLE POR LPI ---
   } else if (currentMethod === 'diffusion_variable') {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
     const tempCanvas = document.createElement('canvas');
     tempCanvas.width = sourceToProcess.width;
     tempCanvas.height = sourceToProcess.height;
@@ -306,12 +308,12 @@ function processHalftone() {
       }
     }
 
-  // --- 3. REJILLA CUADRADA (TRAJE SÓLIDO Y CONTORNOS LIMPIOS SIN PIXELAR) ---
+  // --- 3. REJILLA CUADRADA (TRAJE Y LETRAS SUAVES + NEBULOSA CON TRAMA DE PUNTOS) ---
   } else if (currentMethod === 'standard') {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    // Dibujamos la base completa para conservar los bordes fluidos del traje y letras
+    // Paso A: Dibujamos la imagen completa de fondo para conservar todos los bordes limpios del traje y letras
     ctx.drawImage(sourceToProcess, 0, 0);
 
+    // Paso B: Creamos una copia para leer los colores originales de la nebulosa
     const tempCanvas = document.createElement('canvas');
     tempCanvas.width = sourceToProcess.width;
     tempCanvas.height = sourceToProcess.height;
@@ -319,7 +321,12 @@ function processHalftone() {
     tempCtx.drawImage(sourceToProcess, 0, 0);
     const data = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height).data;
 
-    // Aplicamos trama de puntos únicamente sobre la nebulosa azul y sombras
+    // Paso C: Creamos una capa temporal limpia para pintar únicamente los puntos de semitono de la nebulosa
+    const halftoneCanvas = document.createElement('canvas');
+    halftoneCanvas.width = canvas.width;
+    halftoneCanvas.height = canvas.height;
+    const hCtx = halftoneCanvas.getContext('2d', { willReadFrequently: true });
+
     for (let y = 0; y < canvas.height; y += cellSize) {
       for (let x = 0; x < canvas.width; x += cellSize) {
         const cx = x + cellSize / 2;
@@ -341,39 +348,71 @@ function processHalftone() {
         let minC = Math.min(r, g, b);
         let saturation = maxC === 0 ? 0 : (maxC - minC) / maxC;
 
-        // Omitir zonas de blanco sólido (traje) y colores saturados (letras verdes) para dejarlos limpios y sólidos
+        // Si es blanco sólido (traje) o color muy saturado (letras verdes), lo saltamos para que quede intacto
         if ((r > 180 && g > 180 && b > 180) || (saturation > 0.35 && maxC > 100)) {
           continue;
         }
-
-        // Limpiamos el fondo en esta celda para dibujar el punto de semitono limpio
-        ctx.clearRect(x, y, cellSize, cellSize);
 
         let luma = 0.299 * r + 0.587 * g + 0.114 * b;
         let radius = (luma / 255) * (cellSize * 0.58);
 
         if (radius > 0.15) {
-          ctx.save();
-          ctx.translate(cx, cy);
-          ctx.rotate(angleRad);
-          ctx.fillStyle = `rgb(${Math.round(r)},${Math.round(g)},${Math.round(b)})`;
+          hCtx.save();
+          hCtx.translate(cx, cy);
+          hCtx.rotate(angleRad);
+          hCtx.fillStyle = `rgb(${Math.round(r)},${Math.round(g)},${Math.round(b)})`;
 
-          ctx.beginPath();
+          hCtx.beginPath();
           if (shape === 'round') {
-            ctx.arc(0, 0, radius, 0, Math.PI * 2);
-            ctx.fill();
+            hCtx.arc(0, 0, radius, 0, Math.PI * 2);
+            hCtx.fill();
           } else {
             const lineWidth = radius * 1.5;
-            ctx.fillRect(-cellSize / 2, -lineWidth / 2, cellSize, lineWidth);
+            hCtx.fillRect(-cellSize / 2, -lineWidth / 2, cellSize, lineWidth);
           }
-          ctx.restore();
+          hCtx.restore();
         }
       }
     }
 
+    // Paso D: Obtenemos los datos de píxeles originales y de la trama generada para fusionarlos inteligentemente
+    const baseImgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const basePx = baseImgData.data;
+    const halftoneImgData = hCtx.getImageData(0, 0, canvas.width, canvas.height);
+    const halfPx = halftoneImgData.data;
+
+    const finalOutput = ctx.createImageData(canvas.width, canvas.height);
+    const finalPx = finalOutput.data;
+
+    for (let i = 0; i < basePx.length; i += 4) {
+      let r = data[i], g = data[i+1], b = data[i+2], a = data[i+3];
+      if (a < 20) continue;
+
+      let maxC = Math.max(r, g, b);
+      let minC = Math.min(r, g, b);
+      let saturation = maxC === 0 ? 0 : (maxC - minC) / maxC;
+
+      // Si es traje blanco o letras verdes, preservamos el píxel original limpio sin pixelación
+      if ((r > 180 && g > 180 && b > 180) || (saturation > 0.35 && maxC > 100)) {
+        finalPx[i] = r;
+        finalPx[i+1] = g;
+        finalPx[i+2] = b;
+        finalPx[i+3] = a;
+      } else {
+        // En la zona de la nebulosa, colocamos el punto de semitono generado
+        if (halfPx[i+3] > 0) {
+          finalPx[i] = halfPx[i];
+          finalPx[i+1] = halfPx[i+1];
+          finalPx[i+2] = halfPx[i+2];
+          finalPx[i+3] = halfPx[i+3];
+        }
+      }
+    }
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.putImageData(finalOutput, 0, 0);
+
   // --- 4. TRAMADO HEXAGONAL ---
   } else if (currentMethod === 'hexagonal') {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
     const tempCanvas = document.createElement('canvas');
     tempCanvas.width = sourceToProcess.width;
     tempCanvas.height = sourceToProcess.height;
@@ -417,7 +456,6 @@ function processHalftone() {
 
   // --- 5. LÍNEAS DE GRABADO ---
   } else if (currentMethod === 'lines') {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
     const tempCanvas = document.createElement('canvas');
     tempCanvas.width = sourceToProcess.width;
     tempCanvas.height = sourceToProcess.height;
@@ -456,7 +494,6 @@ function processHalftone() {
 
   // --- 6. ANILLOS CONCÉNTRICOS ---
   } else if (currentMethod === 'concentric') {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
     const tempCanvas = document.createElement('canvas');
     tempCanvas.width = sourceToProcess.width;
     tempCanvas.height = sourceToProcess.height;
@@ -490,7 +527,6 @@ function processHalftone() {
 
   // --- 7. DIFUMINADO ORGÁNICO ---
   } else if (currentMethod === 'stochastic_fade') {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
     const tempCanvas = document.createElement('canvas');
     tempCanvas.width = sourceToProcess.width;
     tempCanvas.height = sourceToProcess.height;
