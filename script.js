@@ -151,7 +151,7 @@ function processHalftone() {
   
   const cellSize = Math.max(3, Math.round(180 / lpi));
 
-  // --- 1. DIFUSIÓN / GRANO REAL ORIGINAL (TU FAVORITO - INTACTO) ---
+  // --- 1. DIFUSIÓN / GRANO REAL ORIGINAL (TU FAVORITO) ---
   if (currentMethod === 'diffusion_original') {
     ctx.drawImage(loadedImage, 0, 0);
     const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
@@ -397,7 +397,7 @@ function processHalftone() {
       }
     }
 
-  // --- 8. HÍBRIDO LEGACY (SÓLIDOS LIMPIOS + DIFUSIÓN ORGÁNICA SIN REJILLA) ---
+  // --- 8. HÍBRIDO LEGACY (SÓLIDOS LIMPIOS + TRAMA DE PUNTOS CÓMIC ROTADA, SIN LÍNEAS DE REJILLA) ---
   } else if (currentMethod === 'hybrid_legacy') {
     ctx.drawImage(loadedImage, 0, 0);
     const tempCanvas = document.createElement('canvas');
@@ -407,12 +407,37 @@ function processHalftone() {
     tempCtx.drawImage(loadedImage, 0, 0);
     const data = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height).data;
 
-    const outputData = ctx.createImageData(canvas.width, canvas.height);
-    const outPx = outputData.data;
+    // 1. Dibujamos la base completa para retener los sólidos (traje blanco y letras verdes)
+    const outImgData = ctx.createImageData(canvas.width, canvas.height);
+    const outPx = outImgData.data;
 
-    for (let y = 0; y < canvas.height; y++) {
-      for (let x = 0; x < canvas.width; x++) {
-        const idx = (y * canvas.width + x) * 4;
+    for (let i = 0; i < data.length; i += 4) {
+      if (data[i + 3] < 20) continue;
+
+      let r = adjustChannel(data[i], blackPoint, whitePoint, gamma);
+      let g = adjustChannel(data[i+1], blackPoint, whitePoint, gamma);
+      let b = adjustChannel(data[i+2], blackPoint, whitePoint, gamma);
+
+      let isWhite = (r > 180 && g > 180 && b > 180);
+      let isGreenText = (g > r + 30 && g > b + 30);
+
+      if (isWhite || isGreenText) {
+        outPx[i] = r;
+        outPx[i+1] = g;
+        outPx[i+2] = b;
+        outPx[i+3] = data[i+3];
+      }
+    }
+    ctx.putImageData(outImgData, 0, 0);
+
+    // 2. Aplicamos la trama de puntos clásica estilo cómic (rotada a 22.5°) limpia sobre la nebulosa
+    for (let y = 0; y < canvas.height; y += cellSize) {
+      for (let x = 0; x < canvas.width; x += cellSize) {
+        const cx = x + cellSize / 2;
+        const cy = y + cellSize / 2;
+        const sampleX = Math.min(Math.max(Math.floor(cx), 0), canvas.width - 1);
+        const sampleY = Math.min(Math.max(Math.floor(cy), 0), canvas.height - 1);
+        const idx = (sampleY * canvas.width + sampleX) * 4;
 
         if (data[idx + 3] < 20) continue;
 
@@ -425,24 +450,29 @@ function processHalftone() {
         let isWhite = (r > 180 && g > 180 && b > 180);
         let isGreenText = (g > r + 30 && g > b + 30);
 
-        if (isWhite || isGreenText) {
-          outPx[idx] = r;
-          outPx[idx + 1] = g;
-          outPx[idx + 2] = b;
-          outPx[idx + 3] = data[idx + 3];
-        } else {
-          let luma = 0.299 * r + 0.587 * g + 0.114 * b;
-          let threshold = (Math.random() - 0.5) * 45;
-          if (luma + threshold > 30) {
-            outPx[idx] = r;
-            outPx[idx + 1] = g;
-            outPx[idx + 2] = b;
-            outPx[idx + 3] = 255;
+        if (isWhite || isGreenText) continue;
+
+        let luma = 0.299 * r + 0.587 * g + 0.114 * b;
+        let radius = (luma / 255) * (cellSize * 0.52);
+
+        if (radius > 0.2) {
+          ctx.save();
+          ctx.translate(cx, cy);
+          ctx.rotate(angleRad);
+          ctx.fillStyle = `rgb(${Math.round(r)},${Math.round(g)},${Math.round(b)})`;
+
+          ctx.beginPath();
+          if (shape === 'round') {
+            ctx.arc(0, 0, radius, 0, Math.PI * 2);
+            ctx.fill();
+          } else {
+            const lineWidth = radius * 1.5;
+            ctx.fillRect(-cellSize / 2, -lineWidth / 2, cellSize, lineWidth);
           }
+          ctx.restore();
         }
       }
     }
-    ctx.putImageData(outputData, 0, 0);
   }
 }
 
