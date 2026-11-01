@@ -397,7 +397,7 @@ function processHalftone() {
       }
     }
 
-  // --- 8. HÍBRIDO LEGACY (SÓLIDOS LIMPIOS + DIFUSIÓN SUAVE) ---
+  // --- 8. HÍBRIDO LEGACY (SÓLIDOS LIMPIOS + COLOR PROFUNDO Y TEXTURA ORGÁNICA SIN LÍNEAS) ---
   } else if (currentMethod === 'hybrid_legacy') {
     ctx.drawImage(loadedImage, 0, 0);
     const tempCanvas = document.createElement('canvas');
@@ -407,7 +407,7 @@ function processHalftone() {
     tempCtx.drawImage(loadedImage, 0, 0);
     const data = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height).data;
 
-    // 1. Capa base sólida: Letras verdes y traje blanco impecables
+    // 1. Capa base sólida: Traje blanco y letras verdes intactas
     const outImgData = ctx.createImageData(canvas.width, canvas.height);
     const outPx = outImgData.data;
 
@@ -430,7 +430,7 @@ function processHalftone() {
     }
     ctx.putImageData(outImgData, 0, 0);
 
-    // 2. Capa de la nebulosa: Difusión suave original respetando el degradado y color profundo
+    // 2. Capa de la nebulosa: Mantenemos la riqueza de color de tu favorito con dispersión orgánica fluida
     for (let y = 0; y < canvas.height; y++) {
       for (let x = 0; x < canvas.width; x++) {
         const idx = (y * canvas.width + x) * 4;
@@ -449,100 +449,9 @@ function processHalftone() {
         if (isWhite || isGreenText) continue;
 
         let luma = 0.299 * r + 0.587 * g + 0.114 * b;
-        let diffusionChance = Math.pow(luma / 255, 1.2);
+        let diffusionChance = Math.pow(luma / 255, 1.1);
 
-        if (Math.random() < diffusionChance && luma > 15) {
+        // Dispersión aleatoria natural que preserva todo el color y degradado original sin formar rejillas
+        if (Math.random() < diffusionChance && luma > 12) {
           outPx[idx] = r;
-          outPx[idx + 1] = g;
-          outPx[idx + 2] = b;
-          outPx[idx + 3] = 255;
-        }
-      }
-    }
-    ctx.putImageData(outImgData, 0, 0);
-  }
-}
-
-function setPngDpi(dataUrl, dpi = 300) {
-  const ppm = Math.round(dpi / 0.0254);
-  const base64 = dataUrl.split(',')[1];
-  const binary = atob(base64);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) {
-    bytes[i] = binary.charCodeAt(i);
-  }
-
-  const insertIndex = 33;
-  const physChunk = new Uint8Array(21);
-  const view = new DataView(physChunk.buffer);
-  
-  view.setUint32(0, 9);
-  physChunk[4] = 112; 
-  physChunk[5] = 72;  
-  physChunk[6] = 89;  
-  physChunk[7] = 115; 
-  view.setUint32(8, ppm);
-  view.setUint32(12, ppm);
-  physChunk[16] = 1;
-
-  const crc = calculateCRC32(physChunk.subarray(4, 17));
-  view.setUint32(17, crc);
-
-  const finalBytes = new Uint8Array(bytes.length + physChunk.length);
-  finalBytes.set(bytes.subarray(0, insertIndex), 0);
-  finalBytes.set(physChunk, insertIndex);
-  finalBytes.set(bytes.subarray(insertIndex), insertIndex + physChunk.length);
-
-  let newBinary = '';
-  for (let i = 0; i < finalBytes.length; i++) {
-    newBinary += String.fromCharCode(finalBytes[i]);
-  }
-  return 'data:image/png;base64,' + btoa(newBinary);
-}
-
-function calculateCRC32(buf) {
-  let c = 0xffffffff;
-  for (let i = 0; i < buf.length; i++) {
-    c = crcTable[(c ^ buf[i]) & 0xff] ^ (c >>> 8);
-  }
-  return (c ^ 0xffffffff) >>> 0;
-}
-
-const crcTable = [];
-for (let n = 0; n < 256; n++) {
-  let c = n;
-  for (let k = 0; k < 8; k++) {
-    c = (c & 1) ? (0xedb88320 ^ (c >>> 1)) : (c >>> 1);
-  }
-  crcTable[n] = c;
-}
-
-if (downloadBtn) {
-  downloadBtn.addEventListener('click', () => {
-    if (!loadedImage) return;
-
-    try {
-      downloadBtn.textContent = 'Generando archivo...';
-      downloadBtn.disabled = true;
-
-      setTimeout(() => {
-        const originalDataUrl = canvas.toDataURL('image/png', 1.0);
-        const dpiDataUrl = setPngDpi(originalDataUrl, 300);
-
-        const link = document.createElement('a');
-        link.download = 'semitonos_legacy_300dpi.png';
-        link.href = dpiDataUrl;
-        link.click();
-
-        downloadBtn.textContent = 'Descargar Imagen (300 DPI - Transparente)';
-        downloadBtn.disabled = false;
-      }, 100);
-
-    } catch (error) {
-      console.error("Error al descargar:", error);
-      alert("La imagen es demasiado grande para la memoria del navegador.");
-      downloadBtn.textContent = 'Descargar Imagen (300 DPI - Transparente)';
-      downloadBtn.disabled = false;
-    }
-  });
-}
+          outPx[idx + 1] = g
