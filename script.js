@@ -153,51 +153,34 @@ function processHalftone() {
 
   // --- 1. DIFUSIÓN / GRANO REAL ORIGINAL ---
   if (currentMethod === 'diffusion_original') {
-    const tempCanvas = document.createElement('canvas');
-    tempCanvas.width = loadedImage.width;
-    tempCanvas.height = loadedImage.height;
-    const tempCtx = tempCanvas.getContext('2d', { willReadFrequently: true });
-    tempCtx.drawImage(loadedImage, 0, 0);
-    const data = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height).data;
+    ctx.drawImage(loadedImage, 0, 0);
+    const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const data = imgData.data;
 
-    const outputData = ctx.createImageData(canvas.width, canvas.height);
-    const outPx = outputData.data;
-
-    for (let y = 0; y < canvas.height; y++) {
-      for (let x = 0; x < canvas.width; x++) {
-        const idx = (y * canvas.width + x) * 4;
-
-        if (data[idx + 3] < 20 || (data[idx] < 25 && data[idx + 1] < 25 && data[idx + 2] < 25)) {
-          outPx[idx + 3] = 0;
-          continue;
-        }
-
-        outPx[idx] = adjustChannel(data[idx], blackPoint, whitePoint, gamma);
-        outPx[idx + 1] = adjustChannel(data[idx+1], blackPoint, whitePoint, gamma);
-        outPx[idx + 2] = adjustChannel(data[idx+2], blackPoint, whitePoint, gamma);
-        outPx[idx + 3] = 255;
+    for (let i = 0; i < data.length; i += 4) {
+      if (data[i + 3] < 20 || (data[i] < 25 && data[i + 1] < 25 && data[i + 2] < 25)) {
+        data[i + 3] = 0;
+        continue;
       }
+      data[i] = adjustChannel(data[i], blackPoint, whitePoint, gamma);
+      data[i + 1] = adjustChannel(data[i+1], blackPoint, whitePoint, gamma);
+      data[i + 2] = adjustChannel(data[i+2], blackPoint, whitePoint, gamma);
     }
-    ctx.putImageData(outputData, 0, 0);
+    ctx.putImageData(imgData, 0, 0);
 
   // --- 2. DIFUSIÓN / GRANO AJUSTABLE ---
   } else if (currentMethod === 'diffusion_variable') {
-    const tempCanvas = document.createElement('canvas');
-    tempCanvas.width = loadedImage.width;
-    tempCanvas.height = loadedImage.height;
-    const tempCtx = tempCanvas.getContext('2d', { willReadFrequently: true });
-    tempCtx.drawImage(loadedImage, 0, 0);
-    const data = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height).data;
+    ctx.drawImage(loadedImage, 0, 0);
+    const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const data = imgData.data;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     const step = Math.max(2, Math.round(180 / lpi));
     const dotSize = Math.max(1, Math.round(step * 0.45));
 
     for (let y = 0; y < canvas.height; y += step) {
       for (let x = 0; x < canvas.width; x += step) {
-        const sampleX = Math.min(Math.max(Math.floor(x + step / 2), 0), canvas.width - 1);
-        const sampleY = Math.min(Math.max(Math.floor(y + step / 2), 0), canvas.height - 1);
-        const idx = (sampleY * canvas.width + sampleX) * 4;
-
+        const idx = (y * canvas.width + x) * 4;
         if (data[idx + 3] < 20) continue;
 
         let r = adjustChannel(data[idx], blackPoint, whitePoint, gamma);
@@ -207,9 +190,7 @@ function processHalftone() {
         if (r < 25 && g < 25 && b < 25) continue;
 
         let luma = 0.299 * r + 0.587 * g + 0.114 * b;
-        let probability = luma / 255;
-
-        if (Math.random() < probability) {
+        if (Math.random() < (luma / 255)) {
           ctx.fillStyle = `rgb(${Math.round(r)},${Math.round(g)},${Math.round(b)})`;
           if (shape === 'round') {
             ctx.beginPath();
@@ -224,23 +205,18 @@ function processHalftone() {
 
   // --- 3. REJILLA CUADRADA ---
   } else if (currentMethod === 'standard') {
-    const tempCanvas = document.createElement('canvas');
-    tempCanvas.width = loadedImage.width;
-    tempCanvas.height = loadedImage.height;
-    const tempCtx = tempCanvas.getContext('2d', { willReadFrequently: true });
-    tempCtx.drawImage(loadedImage, 0, 0);
-    const data = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height).data;
+    ctx.drawImage(loadedImage, 0, 0);
+    const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const data = imgData.data;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     for (let y = 0; y < canvas.height; y += cellSize) {
       for (let x = 0; x < canvas.width; x += cellSize) {
         const cx = x + cellSize / 2;
         const cy = y + cellSize / 2;
+        const idx = (Math.floor(cy) * canvas.width + Math.floor(cx)) * 4;
 
-        const sampleX = Math.min(Math.max(Math.floor(cx), 0), canvas.width - 1);
-        const sampleY = Math.min(Math.max(Math.floor(cy), 0), canvas.height - 1);
-        const idx = (sampleY * canvas.width + sampleX) * 4;
-
-        if (data[idx + 3] < 20) continue;
+        if (idx >= data.length || data[idx + 3] < 20) continue;
 
         let r = adjustChannel(data[idx], blackPoint, whitePoint, gamma);
         let g = adjustChannel(data[idx+1], blackPoint, whitePoint, gamma);
@@ -272,12 +248,10 @@ function processHalftone() {
 
   // --- 4. TRAMADO HEXAGONAL ---
   } else if (currentMethod === 'hexagonal') {
-    const tempCanvas = document.createElement('canvas');
-    tempCanvas.width = loadedImage.width;
-    tempCanvas.height = loadedImage.height;
-    const tempCtx = tempCanvas.getContext('2d', { willReadFrequently: true });
-    tempCtx.drawImage(loadedImage, 0, 0);
-    const data = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height).data;
+    ctx.drawImage(loadedImage, 0, 0);
+    const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const data = imgData.data;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     const rowHeight = cellSize * 0.866; 
     let rowIndex = 0;
@@ -286,16 +260,15 @@ function processHalftone() {
       for (let x = -cellSize; x < canvas.width + cellSize; x += cellSize) {
         const cx = x + xOffset + cellSize / 2;
         const cy = y + rowHeight / 2;
+        const idx = (Math.floor(cy) * canvas.width + Math.floor(cx)) * 4;
 
-        const sampleX = Math.min(Math.max(Math.floor(cx), 0), canvas.width - 1);
-        const sampleY = Math.min(Math.max(Math.floor(cy), 0), canvas.height - 1);
-        const idx = (sampleY * canvas.width + sampleX) * 4;
-
-        if (data[idx + 3] < 20 || (data[idx] < 25 && data[idx+1] < 25 && data[idx+2] < 25)) continue;
+        if (idx >= data.length || data[idx + 3] < 20) continue;
 
         let r = adjustChannel(data[idx], blackPoint, whitePoint, gamma);
         let g = adjustChannel(data[idx+1], blackPoint, whitePoint, gamma);
         let b = adjustChannel(data[idx+2], blackPoint, whitePoint, gamma);
+
+        if (r < 15 && g < 15 && b < 15) continue;
 
         let luma = 0.299 * r + 0.587 * g + 0.114 * b;
         let radius = (luma / 255) * (cellSize * 0.5);
@@ -315,27 +288,24 @@ function processHalftone() {
 
   // --- 5. LÍNEAS DE GRABADO ---
   } else if (currentMethod === 'lines') {
-    const tempCanvas = document.createElement('canvas');
-    tempCanvas.width = loadedImage.width;
-    tempCanvas.height = loadedImage.height;
-    const tempCtx = tempCanvas.getContext('2d', { willReadFrequently: true });
-    tempCtx.drawImage(loadedImage, 0, 0);
-    const data = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height).data;
+    ctx.drawImage(loadedImage, 0, 0);
+    const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const data = imgData.data;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     for (let y = 0; y < canvas.height; y += cellSize) {
       for (let x = 0; x < canvas.width; x += cellSize) {
         const cx = x + cellSize / 2;
         const cy = y + cellSize / 2;
+        const idx = (Math.floor(cy) * canvas.width + Math.floor(cx)) * 4;
 
-        const sampleX = Math.min(Math.max(Math.floor(cx), 0), canvas.width - 1);
-        const sampleY = Math.min(Math.max(Math.floor(cy), 0), canvas.height - 1);
-        const idx = (sampleY * canvas.width + sampleX) * 4;
-
-        if (data[idx + 3] < 20 || (data[idx] < 25 && data[idx+1] < 25 && data[idx+2] < 25)) continue;
+        if (idx >= data.length || data[idx + 3] < 20) continue;
 
         let r = adjustChannel(data[idx], blackPoint, whitePoint, gamma);
         let g = adjustChannel(data[idx+1], blackPoint, whitePoint, gamma);
         let b = adjustChannel(data[idx+2], blackPoint, whitePoint, gamma);
+
+        if (r < 15 && g < 15 && b < 15) continue;
 
         let luma = 0.299 * r + 0.587 * g + 0.114 * b;
         let lineHeight = (luma / 255) * cellSize;
@@ -353,12 +323,10 @@ function processHalftone() {
 
   // --- 6. ANILLOS CONCÉNTRICOS ---
   } else if (currentMethod === 'concentric') {
-    const tempCanvas = document.createElement('canvas');
-    tempCanvas.width = loadedImage.width;
-    tempCanvas.height = loadedImage.height;
-    const tempCtx = tempCanvas.getContext('2d', { willReadFrequently: true });
-    tempCtx.drawImage(loadedImage, 0, 0);
-    const data = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height).data;
+    ctx.drawImage(loadedImage, 0, 0);
+    const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const data = imgData.data;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     const centerX = canvas.width / 2;
     const centerY = canvas.height / 2;
@@ -386,12 +354,10 @@ function processHalftone() {
 
   // --- 7. DIFUMINADO ORGÁNICO ---
   } else if (currentMethod === 'stochastic_fade') {
-    const tempCanvas = document.createElement('canvas');
-    tempCanvas.width = loadedImage.width;
-    tempCanvas.height = loadedImage.height;
-    const tempCtx = tempCanvas.getContext('2d', { willReadFrequently: true });
-    tempCtx.drawImage(loadedImage, 0, 0);
-    const data = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height).data;
+    ctx.drawImage(loadedImage, 0, 0);
+    const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const data = imgData.data;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     for (let y = 0; y < canvas.height; y += cellSize) {
       for (let x = 0; x < canvas.width; x += cellSize) {
@@ -400,16 +366,15 @@ function processHalftone() {
         
         const cx = x + cellSize / 2 + jitterX;
         const cy = y + cellSize / 2 + jitterY;
+        const idx = (Math.floor(cy) * canvas.width + Math.floor(cx)) * 4;
 
-        const sampleX = Math.min(Math.max(Math.floor(cx), 0), canvas.width - 1);
-        const sampleY = Math.min(Math.max(Math.floor(cy), 0), canvas.height - 1);
-        const idx = (sampleY * canvas.width + sampleX) * 4;
-
-        if (data[idx + 3] < 20 || (data[idx] < 25 && data[idx+1] < 25 && data[idx+2] < 25)) continue;
+        if (idx >= data.length || data[idx + 3] < 20) continue;
 
         let r = adjustChannel(data[idx], blackPoint, whitePoint, gamma);
         let g = adjustChannel(data[idx+1], blackPoint, whitePoint, gamma);
         let b = adjustChannel(data[idx+2], blackPoint, whitePoint, gamma);
+
+        if (r < 15 && g < 15 && b < 15) continue;
 
         let luma = 0.299 * r + 0.587 * g + 0.114 * b;
         let radius = (luma / 255) * (cellSize * 0.45);
