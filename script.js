@@ -397,9 +397,8 @@ function processHalftone() {
       }
     }
 
-  // --- 8. HÍBRIDO LEGACY (SÓLIDOS EN ZONAS INTENSAS + TRAMA FINITA DE PUNTOS EN DEGRADADOS) ---
+  // --- 8. HÍBRIDO LEGACY (SÓLIDOS LIMPIOS + DIFUSIÓN ORGÁNICA ABSOLUTA SIN NINGUNA REJILLA) ---
   } else if (currentMethod === 'hybrid_legacy') {
-    // 1. Cargamos la imagen base completa para mantener los sólidos y el color profundo original
     ctx.drawImage(loadedImage, 0, 0);
     const tempCanvas = document.createElement('canvas');
     tempCanvas.width = loadedImage.width;
@@ -411,7 +410,7 @@ function processHalftone() {
     const outImgData = ctx.createImageData(canvas.width, canvas.height);
     const outPx = outImgData.data;
 
-    // Primer paso: Preservar traje blanco, letras verdes Y vetas/zonas de azul sólido intenso
+    // 1. Capa base: Preservamos los sólidos puros (traje blanco, letras verdes y azul sólido interno)
     for (let i = 0; i < data.length; i += 4) {
       if (data[i + 3] < 20) continue;
 
@@ -421,8 +420,7 @@ function processHalftone() {
 
       let isWhite = (r > 180 && g > 180 && b > 180);
       let isGreenText = (g > r + 30 && g > b + 30);
-      // Las zonas muy densas/intensas de azul se quedan como sólido puro
-      let isSolidBlue = (b > 120 && b > r + 40 && (r + g + b) / 3 > 90);
+      let isSolidBlue = (b > 125 && b > r + 30 && (r + g + b) / 3 > 95);
 
       if (isWhite || isGreenText || isSolidBlue) {
         outPx[i] = r;
@@ -433,15 +431,18 @@ function processHalftone() {
     }
     ctx.putImageData(outImgData, 0, 0);
 
-    // Segundo paso: Aplicar la trama finita de puntos de cómic únicamente en las zonas de degradado/transición
-    const fineStep = Math.max(3, Math.round(cellSize * 0.6));
+    // 2. Capa de difusión estocástica pura: Textura de micropuntos sin coordenadas fijas (cero líneas de rejilla)
+    const densityStep = 1; // Analiza cada píxel de forma totalmente fluida y orgánica
+    const skip = Math.max(1, Math.round(180 / (lpi * 2.2)));
 
-    for (let y = 0; y < canvas.height; y += fineStep) {
-      for (let x = 0; x < canvas.width; x += fineStep) {
-        const cx = x + fineStep / 2;
-        const cy = y + fineStep / 2;
-        const sampleX = Math.min(Math.max(Math.floor(cx), 0), canvas.width - 1);
-        const sampleY = Math.min(Math.max(Math.floor(cy), 0), canvas.height - 1);
+    for (let y = 0; y < canvas.height; y += skip) {
+      for (let x = 0; x < canvas.width; x += skip) {
+        // Desplazamiento totalmente aleatorio (estocástico) para romper cualquier patrón de rejilla
+        const rx = x + (Math.random() - 0.5) * skip;
+        const ry = y + (Math.random() - 0.5) * skip;
+
+        const sampleX = Math.min(Math.max(Math.floor(rx), 0), canvas.width - 1);
+        const sampleY = Math.min(Math.max(Math.floor(ry), 0), canvas.height - 1);
         const idx = (sampleY * canvas.width + sampleX) * 4;
 
         if (data[idx + 3] < 20) continue;
@@ -454,29 +455,19 @@ function processHalftone() {
 
         let isWhite = (r > 180 && g > 180 && b > 180);
         let isGreenText = (g > r + 30 && g > b + 30);
-        let isSolidBlue = (b > 120 && b > r + 40 && (r + g + b) / 3 > 90);
+        let isSolidBlue = (b > 125 && b > r + 30 && (r + g + b) / 3 > 95);
 
-        // Si ya es parte de los sólidos, no ponemos puntos encima
         if (isWhite || isGreenText || isSolidBlue) continue;
 
         let luma = 0.299 * r + 0.587 * g + 0.114 * b;
-        let radius = (luma / 255) * (fineStep * 0.6);
+        let probability = luma / 255;
 
-        if (radius > 0.2) {
-          ctx.save();
-          ctx.translate(cx, cy);
-          ctx.rotate(angleRad);
+        // Si pasa la probabilidad estocástica, dibujamos un punto suave y redondo de tamaño ultra fino
+        if (Math.random() < probability * 0.9) {
           ctx.fillStyle = `rgb(${Math.round(r)},${Math.round(g)},${Math.round(b)})`;
-
           ctx.beginPath();
-          if (shape === 'round') {
-            ctx.arc(0, 0, radius, 0, Math.PI * 2);
-            ctx.fill();
-          } else {
-            const lineWidth = radius * 1.5;
-            ctx.fillRect(-fineStep / 2, -lineWidth / 2, fineStep, lineWidth);
-          }
-          ctx.restore();
+          ctx.arc(rx, ry, Math.max(0.8, skip * 0.45), 0, Math.PI * 2);
+          ctx.fill();
         }
       }
     }
