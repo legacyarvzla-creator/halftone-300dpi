@@ -151,7 +151,7 @@ function processHalftone() {
   
   const cellSize = Math.max(3, Math.round(180 / lpi));
 
-  // --- 1. DIFUSIÓN / GRANO REAL ORIGINAL (TU FAVORITO - INTACTO) ---
+  // --- 1. DIFUSIÓN / GRANO REAL ORIGINAL (TU FAVORITO) ---
   if (currentMethod === 'diffusion_original') {
     ctx.drawImage(loadedImage, 0, 0);
     const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
@@ -397,7 +397,7 @@ function processHalftone() {
       }
     }
 
-  // --- 8. HÍBRIDO LEGACY (SÓLIDOS LIMPIOS + DIFUSIÓN ORGÁNICA SIN REJILLA) ---
+  // --- 8. HÍBRIDO LEGACY (SÓLIDOS LIMPIOS + DEGRADADO DE DIFUSIÓN ORGÁNICA CON MICROPUNTOS) ---
   } else if (currentMethod === 'hybrid_legacy') {
     ctx.drawImage(loadedImage, 0, 0);
     const tempCanvas = document.createElement('canvas');
@@ -407,12 +407,40 @@ function processHalftone() {
     tempCtx.drawImage(loadedImage, 0, 0);
     const data = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height).data;
 
-    const outputData = ctx.createImageData(canvas.width, canvas.height);
-    const outPx = outputData.data;
+    // 1. Capa base sólida: Traje blanco y letras verdes intactas
+    const outImgData = ctx.createImageData(canvas.width, canvas.height);
+    const outPx = outImgData.data;
 
-    for (let y = 0; y < canvas.height; y++) {
-      for (let x = 0; x < canvas.width; x++) {
-        const idx = (y * canvas.width + x) * 4;
+    for (let i = 0; i < data.length; i += 4) {
+      if (data[i + 3] < 20) continue;
+
+      let r = adjustChannel(data[i], blackPoint, whitePoint, gamma);
+      let g = adjustChannel(data[i+1], blackPoint, whitePoint, gamma);
+      let b = adjustChannel(data[i+2], blackPoint, whitePoint, gamma);
+
+      let isWhite = (r > 180 && g > 180 && b > 180);
+      let isGreenText = (g > r + 30 && g > b + 30);
+
+      if (isWhite || isGreenText) {
+        outPx[i] = r;
+        outPx[i+1] = g;
+        outPx[i+2] = b;
+        outPx[i+3] = data[i+3];
+      }
+    }
+    ctx.putImageData(outImgData, 0, 0);
+
+    // 2. Capa de la nebulosa: Degradado fluido con micropuntos redondos y orgánicos (sin líneas de rejilla)
+    const step = Math.max(1, Math.round(180 / (lpi * 2.2)));
+
+    for (let y = 0; y < canvas.height; y += step) {
+      for (let x = 0; x < canvas.width; x += step) {
+        const rx = x + (Math.random() - 0.5) * step;
+        const ry = y + (Math.random() - 0.5) * step;
+
+        const sampleX = Math.min(Math.max(Math.floor(rx), 0), canvas.width - 1);
+        const sampleY = Math.min(Math.max(Math.floor(ry), 0), canvas.height - 1);
+        const idx = (sampleY * canvas.width + sampleX) * 4;
 
         if (data[idx + 3] < 20) continue;
 
@@ -425,24 +453,20 @@ function processHalftone() {
         let isWhite = (r > 180 && g > 180 && b > 180);
         let isGreenText = (g > r + 30 && g > b + 30);
 
-        if (isWhite || isGreenText) {
-          outPx[idx] = r;
-          outPx[idx + 1] = g;
-          outPx[idx + 2] = b;
-          outPx[idx + 3] = data[idx + 3];
-        } else {
-          let luma = 0.299 * r + 0.587 * g + 0.114 * b;
-          let threshold = (Math.random() - 0.5) * 45;
-          if (luma + threshold > 30) {
-            outPx[idx] = r;
-            outPx[idx + 1] = g;
-            outPx[idx + 2] = b;
-            outPx[idx + 3] = 255;
-          }
+        if (isWhite || isGreenText) continue;
+
+        let luma = 0.299 * r + 0.587 * g + 0.114 * b;
+        // Curva de degradado suave para mantener la transición viva y profunda de la primera imagen
+        let gradientChance = Math.pow(luma / 255, 0.9);
+
+        if (Math.random() < gradientChance && luma > 10) {
+          ctx.fillStyle = `rgb(${Math.round(r)},${Math.round(g)},${Math.round(b)})`;
+          ctx.beginPath();
+          ctx.arc(rx, ry, Math.max(0.8, step * 0.42), 0, Math.PI * 2);
+          ctx.fill();
         }
       }
     }
-    ctx.putImageData(outputData, 0, 0);
   }
 }
 
