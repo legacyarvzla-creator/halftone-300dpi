@@ -303,7 +303,7 @@ function processHalftone() {
       }
     }
 
-  // --- 3. REJILLA CUADRADA A COLOR REAL (CON BLANCO SÓLIDO) ---
+ // --- 3. REJILLA CUADRADA A COLOR REAL (BLANCO SÓLIDO + COLORES VIVOS + SOMBRAS EN TRAMA) ---
   } else if (currentMethod === 'standard') {
     for (let y = 0; y < canvas.height; y += cellSize) {
       for (let x = 0; x < canvas.width; x += cellSize) {
@@ -320,18 +320,31 @@ function processHalftone() {
         let g = adjustChannel(data[idx+1], blackPoint, whitePoint, gamma);
         let b = adjustChannel(data[idx+2], blackPoint, whitePoint, gamma);
 
+        // Ignorar negros puros (transparente)
         if (r < 15 && g < 15 && b < 15) continue;
 
-        if (r > 230 && g > 230 && b > 230) {
+        // 1. ZONAS BLANCAS O MUY CLARAS (El traje de MJ): Se pintan SÓLIDAS sin malla
+        if (r > 170 && g > 170 && b > 170) {
           ctx.fillStyle = `rgb(${Math.round(r)},${Math.round(g)},${Math.round(b)})`;
           ctx.fillRect(x, y, cellSize, cellSize);
           continue;
         }
 
+        // 2. COLORES MUY SATURADOS (Como las letras verdes): Se pintan SÓLIDOS sin malla
+        let maxC = Math.max(r, g, b);
+        let minC = Math.min(r, g, b);
+        let saturation = maxC === 0 ? 0 : (maxC - minC) / maxC;
+        if (saturation > 0.4 && maxC > 120) {
+          ctx.fillStyle = `rgb(${Math.round(r)},${Math.round(g)},${Math.round(b)})`;
+          ctx.fillRect(x, y, cellSize, cellSize);
+          continue;
+        }
+
+        // 3. SOLO DEGRADADOS Y SOMBRAS (La nebulosa azul): Llevan trama de puntos a 30 LPI
         let luma = 0.299 * r + 0.587 * g + 0.114 * b;
         let radius = (luma / 255) * (cellSize * 0.58);
 
-        if (radius > 0.2) {
+        if (radius > 0.15) {
           ctx.save();
           ctx.translate(cx, cy);
           ctx.rotate(angleRad);
