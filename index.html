@@ -22,19 +22,16 @@
         <input type="file" id="imageInput" accept="image/*" style="width: 100%; color: #fff;">
       </div>
 
-      <!-- Método de Tramado / Patrón -->
-      <div class="control-group" style="grid-column: 1 / -1;">
-        <label for="methodSelect">Método de Tramado / Patrón (Color Puro Garantizado):</label>
-        <select id="methodSelect" style="width: 100%; padding: 8px;">
-          <option value="diffusion_original">1. Difusión / Grano Real (Original - Tu Favorito)</option>
-          <option value="diffusion_variable">2. Difusión / Grano Ajustable (Por LPI)</option>
-          <option value="standard">3. Rejilla Cuadrada (Estándar a Color)</option>
-          <option value="hexagonal">4. Tramado Hexagonal (Panal a Color)</option>
-          <option value="lines">5. Líneas de Grabado (Efecto Billete a Color)</option>
-          <option value="concentric">6. Anillos Concéntricos (Ondas a Color)</option>
-          <option value="stochastic_fade">7. Difuminado Orgánico (DTF sin malla)</option>
-        </select>
-      </div>
+      <select id="methodSelect">
+  <option value="diffusion_original">1. Difusión / Grano Real (Original - Tu Favorito)</option>
+  <option value="diffusion_variable">2. Difusión / Grano Ajustable (Por LPI)</option>
+  <option value="standard">3. Rejilla Cuadrada (Estándar a Color)</option>
+  <option value="hexagonal">4. Tramado Hexagonal (Panal a Color)</option>
+  <option value="lines">5. Líneas de Grabado (Efecto Billete a Color)</option>
+  <option value="concentric">6. Anillos Concéntricos (Ondas a Color)</option>
+  <option value="stochastic_fade">7. Difuminado Orgánico (DTF sin malla)</option>
+  <option value="hybrid_legacy" selected>8. Híbrido Legacy (Sólidos Limpios + Difusión Suave)</option>
+</select>
 
       <!-- Frecuencia / Tamaño de Trama (LPI) -->
       <div class="control-group">
