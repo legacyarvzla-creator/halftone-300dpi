@@ -120,73 +120,6 @@ if (imageInput) {
   });
 }
 
-function getCroppedImageCanvas(img, threshold) {
-  const tempCanvas = document.createElement('canvas');
-  const tempCtx = tempCanvas.getContext('2d', { willReadFrequently: true });
-  tempCanvas.width = img.width;
-  tempCanvas.height = img.height;
-  tempCtx.drawImage(img, 0, 0);
-
-  const imgData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
-  const data = imgData.data;
-  const width = tempCanvas.width;
-  const height = tempCanvas.height;
-
-  let top = 0, bottom = height, left = 0, right = width;
-
-  toping: for (let y = 0; y < height; y++) {
-    for (let x = 0; x < width; x++) {
-      const idx = (y * width + x) * 4;
-      if (data[idx+3] > 20 && (data[idx] > threshold || data[idx+1] > threshold || data[idx+2] > threshold)) {
-        top = y;
-        break toping;
-      }
-    }
-  }
-
-  bottoming: for (let y = height - 1; y >= top; y--) {
-    for (let x = 0; x < width; x++) {
-      const idx = (y * width + x) * 4;
-      if (data[idx+3] > 20 && (data[idx] > threshold || data[idx+1] > threshold || data[idx+2] > threshold)) {
-        bottom = y + 1;
-        break bottoming;
-      }
-    }
-  }
-
-  lefting: for (let x = 0; x < width; x++) {
-    for (let y = top; y < bottom; y++) {
-      const idx = (y * width + x) * 4;
-      if (data[idx+3] > 20 && (data[idx] > threshold || data[idx+1] > threshold || data[idx+2] > threshold)) {
-        left = x;
-        break lefting;
-      }
-    }
-  }
-
-  righting: for (let x = width - 1; x >= left; x--) {
-    for (let y = top; y < bottom; y++) {
-      const idx = (y * width + x) * 4;
-      if (data[idx+3] > 20 && (data[idx] > threshold || data[idx+1] > threshold || data[idx+2] > threshold)) {
-        right = x + 1;
-        break righting;
-      }
-    }
-  }
-
-  const croppedWidth = right - left;
-  const croppedHeight = bottom - top;
-  if (croppedWidth <= 0 || croppedHeight <= 0) return img;
-
-  const croppedCanvas = document.createElement('canvas');
-  const croppedCtx = croppedCanvas.getContext('2d', { willReadFrequently: true });
-  croppedCanvas.width = croppedWidth;
-  croppedCanvas.height = croppedHeight;
-  croppedCtx.drawImage(tempCanvas, left, top, croppedWidth, croppedHeight, 0, 0, croppedWidth, croppedHeight);
-
-  return croppedCanvas;
-}
-
 function adjustChannel(val, blackPoint, whitePoint, gamma) {
   let v = val;
   if (whitePoint > blackPoint) {
@@ -204,14 +137,9 @@ function adjustChannel(val, blackPoint, whitePoint, gamma) {
 function processHalftone() {
   if (!loadedImage || !canvas || !ctx) return;
 
-  let sourceToProcess = loadedImage;
-  if (cropBgToggle && cropBgToggle.checked) {
-    const thresholdVal = parseInt(cropThresholdInput ? cropThresholdInput.value : 20, 10);
-    sourceToProcess = getCroppedImageCanvas(loadedImage, thresholdVal);
-  }
-
-  canvas.width = sourceToProcess.width;
-  canvas.height = sourceToProcess.height;
+  canvas.width = loadedImage.width;
+  canvas.height = loadedImage.height;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
 
   const blackPoint = parseInt(blackPointInput ? blackPointInput.value : 0, 10);
   const whitePoint = parseInt(whitePointInput ? whitePointInput.value : 255, 10);
@@ -225,12 +153,11 @@ function processHalftone() {
 
   // --- 1. DIFUSIÓN / GRANO REAL ORIGINAL ---
   if (currentMethod === 'diffusion_original') {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
     const tempCanvas = document.createElement('canvas');
-    tempCanvas.width = sourceToProcess.width;
-    tempCanvas.height = sourceToProcess.height;
+    tempCanvas.width = loadedImage.width;
+    tempCanvas.height = loadedImage.height;
     const tempCtx = tempCanvas.getContext('2d', { willReadFrequently: true });
-    tempCtx.drawImage(sourceToProcess, 0, 0);
+    tempCtx.drawImage(loadedImage, 0, 0);
     const data = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height).data;
 
     const outputData = ctx.createImageData(canvas.width, canvas.height);
@@ -253,14 +180,13 @@ function processHalftone() {
     }
     ctx.putImageData(outputData, 0, 0);
 
-  // --- 2. DIFUSIÓN / GRANO AJUSTABLE POR LPI ---
+  // --- 2. DIFUSIÓN / GRANO AJUSTABLE ---
   } else if (currentMethod === 'diffusion_variable') {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
     const tempCanvas = document.createElement('canvas');
-    tempCanvas.width = sourceToProcess.width;
-    tempCanvas.height = sourceToProcess.height;
+    tempCanvas.width = loadedImage.width;
+    tempCanvas.height = loadedImage.height;
     const tempCtx = tempCanvas.getContext('2d', { willReadFrequently: true });
-    tempCtx.drawImage(sourceToProcess, 0, 0);
+    tempCtx.drawImage(loadedImage, 0, 0);
     const data = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height).data;
 
     const step = Math.max(2, Math.round(180 / lpi));
@@ -285,7 +211,6 @@ function processHalftone() {
 
         if (Math.random() < probability) {
           ctx.fillStyle = `rgb(${Math.round(r)},${Math.round(g)},${Math.round(b)})`;
-
           if (shape === 'round') {
             ctx.beginPath();
             ctx.arc(x + step / 2, y + step / 2, dotSize, 0, Math.PI * 2);
@@ -299,39 +224,13 @@ function processHalftone() {
 
   // --- 3. REJILLA CUADRADA ---
   } else if (currentMethod === 'standard') {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
     const tempCanvas = document.createElement('canvas');
-    tempCanvas.width = sourceToProcess.width;
-    tempCanvas.height = sourceToProcess.height;
+    tempCanvas.width = loadedImage.width;
+    tempCanvas.height = loadedImage.height;
     const tempCtx = tempCanvas.getContext('2d', { willReadFrequently: true });
-    tempCtx.drawImage(sourceToProcess, 0, 0);
+    tempCtx.drawImage(loadedImage, 0, 0);
     const data = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height).data;
 
-    // 1. Dibujamos los bordes y zonas sólidas intactas (traje blanco y letras verdes)
-    const outImgData = ctx.createImageData(canvas.width, canvas.height);
-    const outPx = outImgData.data;
-
-    for (let i = 0; i < data.length; i += 4) {
-      if (data[i + 3] < 20) continue;
-
-      let r = adjustChannel(data[i], blackPoint, whitePoint, gamma);
-      let g = adjustChannel(data[i+1], blackPoint, whitePoint, gamma);
-      let b = adjustChannel(data[i+2], blackPoint, whitePoint, gamma);
-
-      let isWhite = (r > 180 && g > 180 && b > 180);
-      let isGreenText = (g > r + 30 && g > b + 30);
-
-      if (isWhite || isGreenText) {
-        outPx[i] = r;
-        outPx[i+1] = g;
-        outPx[i+2] = b;
-        outPx[i+3] = data[i+3];
-      }
-    }
-    ctx.putImageData(outImgData, 0, 0);
-
-    // 2. Dibujamos la trama de semitono a 30 LPI únicamente en la nebulosa azul
     for (let y = 0; y < canvas.height; y += cellSize) {
       for (let x = 0; x < canvas.width; x += cellSize) {
         const cx = x + cellSize / 2;
@@ -347,17 +246,12 @@ function processHalftone() {
         let g = adjustChannel(data[idx+1], blackPoint, whitePoint, gamma);
         let b = adjustChannel(data[idx+2], blackPoint, whitePoint, gamma);
 
-        if (r < 20 && g < 20 && b < 20) continue;
-
-        let isWhite = (r > 180 && g > 180 && b > 180);
-        let isGreenText = (g > r + 30 && g > b + 30);
-
-        if (isWhite || isGreenText) continue;
+        if (r < 15 && g < 15 && b < 15) continue;
 
         let luma = 0.299 * r + 0.587 * g + 0.114 * b;
         let radius = (luma / 255) * (cellSize * 0.58);
 
-        if (radius > 0.15) {
+        if (radius > 0.2) {
           ctx.save();
           ctx.translate(cx, cy);
           ctx.rotate(angleRad);
@@ -378,12 +272,11 @@ function processHalftone() {
 
   // --- 4. TRAMADO HEXAGONAL ---
   } else if (currentMethod === 'hexagonal') {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
     const tempCanvas = document.createElement('canvas');
-    tempCanvas.width = sourceToProcess.width;
-    tempCanvas.height = sourceToProcess.height;
+    tempCanvas.width = loadedImage.width;
+    tempCanvas.height = loadedImage.height;
     const tempCtx = tempCanvas.getContext('2d', { willReadFrequently: true });
-    tempCtx.drawImage(sourceToProcess, 0, 0);
+    tempCtx.drawImage(loadedImage, 0, 0);
     const data = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height).data;
 
     const rowHeight = cellSize * 0.866; 
@@ -422,12 +315,11 @@ function processHalftone() {
 
   // --- 5. LÍNEAS DE GRABADO ---
   } else if (currentMethod === 'lines') {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
     const tempCanvas = document.createElement('canvas');
-    tempCanvas.width = sourceToProcess.width;
-    tempCanvas.height = sourceToProcess.height;
+    tempCanvas.width = loadedImage.width;
+    tempCanvas.height = loadedImage.height;
     const tempCtx = tempCanvas.getContext('2d', { willReadFrequently: true });
-    tempCtx.drawImage(sourceToProcess, 0, 0);
+    tempCtx.drawImage(loadedImage, 0, 0);
     const data = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height).data;
 
     for (let y = 0; y < canvas.height; y += cellSize) {
@@ -461,12 +353,11 @@ function processHalftone() {
 
   // --- 6. ANILLOS CONCÉNTRICOS ---
   } else if (currentMethod === 'concentric') {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
     const tempCanvas = document.createElement('canvas');
-    tempCanvas.width = sourceToProcess.width;
-    tempCanvas.height = sourceToProcess.height;
+    tempCanvas.width = loadedImage.width;
+    tempCanvas.height = loadedImage.height;
     const tempCtx = tempCanvas.getContext('2d', { willReadFrequently: true });
-    tempCtx.drawImage(sourceToProcess, 0, 0);
+    tempCtx.drawImage(loadedImage, 0, 0);
     const data = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height).data;
 
     const centerX = canvas.width / 2;
@@ -495,12 +386,11 @@ function processHalftone() {
 
   // --- 7. DIFUMINADO ORGÁNICO ---
   } else if (currentMethod === 'stochastic_fade') {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
     const tempCanvas = document.createElement('canvas');
-    tempCanvas.width = sourceToProcess.width;
-    tempCanvas.height = sourceToProcess.height;
+    tempCanvas.width = loadedImage.width;
+    tempCanvas.height = loadedImage.height;
     const tempCtx = tempCanvas.getContext('2d', { willReadFrequently: true });
-    tempCtx.drawImage(sourceToProcess, 0, 0);
+    tempCtx.drawImage(loadedImage, 0, 0);
     const data = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height).data;
 
     for (let y = 0; y < canvas.height; y += cellSize) {
