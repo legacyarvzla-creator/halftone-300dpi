@@ -314,4 +314,235 @@ function processHalftone() {
           ctx.save();
           ctx.translate(cx, cy);
           ctx.rotate(angleRad);
-          ctx.fillStyle =
+          ctx.fillStyle = `rgb(${Math.round(r)},${Math.round(g)},${Math.round(b)})`;
+          ctx.fillRect(-cellSize / 2, -lineHeight / 2, cellSize, lineHeight);
+          ctx.restore();
+        }
+      }
+    }
+
+  // --- 6. ANILLOS CONCÉNTRICOS ---
+  } else if (currentMethod === 'concentric') {
+    ctx.drawImage(loadedImage, 0, 0);
+    const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const data = imgData.data;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    const centerX = canvas.width / 2;
+    const centerY = canvas.height / 2;
+
+    for (let y = 0; y < canvas.height; y += 2) {
+      for (let x = 0; x < canvas.width; x += 2) {
+        const idx = (y * canvas.width + x) * 4;
+        if (data[idx + 3] < 20 || (data[idx] < 25 && data[idx+1] < 25 && data[idx+2] < 25)) continue;
+
+        let r = adjustChannel(data[idx], blackPoint, whitePoint, gamma);
+        let g = adjustChannel(data[idx+1], blackPoint, whitePoint, gamma);
+        let b = adjustChannel(data[idx+2], blackPoint, whitePoint, gamma);
+
+        let dist = Math.sqrt((x - centerX) ** 2 + (y - centerY) ** 2);
+        let wave = Math.sin(dist / (cellSize * 0.4));
+        let luma = 0.299 * r + 0.587 * g + 0.114 * b;
+        let threshold = 1 - (luma / 255) * 2;
+
+        if (wave > threshold) {
+          ctx.fillStyle = `rgb(${Math.round(r)},${Math.round(g)},${Math.round(b)})`;
+          ctx.fillRect(x, y, 2, 2);
+        }
+      }
+    }
+
+  // --- 7. DIFUMINADO ORGÁNICO ---
+  } else if (currentMethod === 'stochastic_fade') {
+    ctx.drawImage(loadedImage, 0, 0);
+    const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const data = imgData.data;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    for (let y = 0; y < canvas.height; y += cellSize) {
+      for (let x = 0; x < canvas.width; x += cellSize) {
+        const jitterX = (Math.random() - 0.5) * (cellSize * 0.7);
+        const jitterY = (Math.random() - 0.5) * (cellSize * 0.7);
+        
+        const cx = x + cellSize / 2 + jitterX;
+        const cy = y + cellSize / 2 + jitterY;
+        const idx = (Math.floor(cy) * canvas.width + Math.floor(cx)) * 4;
+
+        if (idx >= data.length || data[idx + 3] < 20) continue;
+
+        let r = adjustChannel(data[idx], blackPoint, whitePoint, gamma);
+        let g = adjustChannel(data[idx+1], blackPoint, whitePoint, gamma);
+        let b = adjustChannel(data[idx+2], blackPoint, whitePoint, gamma);
+
+        if (r < 15 && g < 15 && b < 15) continue;
+
+        let luma = 0.299 * r + 0.587 * g + 0.114 * b;
+        let radius = (luma / 255) * (cellSize * 0.45);
+
+        if (radius > 0.15) {
+          ctx.save();
+          ctx.translate(cx, cy);
+          ctx.rotate(angleRad);
+          ctx.fillStyle = `rgb(${Math.round(r)},${Math.round(g)},${Math.round(b)})`;
+
+          ctx.beginPath();
+          if (shape === 'round') {
+            ctx.arc(0, 0, radius, 0, Math.PI * 2);
+            ctx.fill();
+          } else {
+            ctx.fillRect(-cellSize / 2, -radius / 2, cellSize, radius);
+          }
+          ctx.restore();
+        }
+      }
+    }
+
+  // --- 8. HÍBRIDO LEGACY (SÓLIDOS LIMPIOS + DIFUSIÓN SUAVE) ---
+  } else if (currentMethod === 'hybrid_legacy') {
+    ctx.drawImage(loadedImage, 0, 0);
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = loadedImage.width;
+    tempCanvas.height = loadedImage.height;
+    const tempCtx = tempCanvas.getContext('2d', { willReadFrequently: true });
+    tempCtx.drawImage(loadedImage, 0, 0);
+    const data = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height).data;
+
+    // 1. Capa base sólida: Letras verdes y traje blanco impecables
+    const outImgData = ctx.createImageData(canvas.width, canvas.height);
+    const outPx = outImgData.data;
+
+    for (let i = 0; i < data.length; i += 4) {
+      if (data[i + 3] < 20) continue;
+
+      let r = adjustChannel(data[i], blackPoint, whitePoint, gamma);
+      let g = adjustChannel(data[i+1], blackPoint, whitePoint, gamma);
+      let b = adjustChannel(data[i+2], blackPoint, whitePoint, gamma);
+
+      let isWhite = (r > 180 && g > 180 && b > 180);
+      let isGreenText = (g > r + 30 && g > b + 30);
+
+      if (isWhite || isGreenText) {
+        outPx[i] = r;
+        outPx[i+1] = g;
+        outPx[i+2] = b;
+        outPx[i+3] = data[i+3];
+      }
+    }
+    ctx.putImageData(outImgData, 0, 0);
+
+    // 2. Capa de la nebulosa: Difusión suave original respetando el degradado y color profundo
+    for (let y = 0; y < canvas.height; y++) {
+      for (let x = 0; x < canvas.width; x++) {
+        const idx = (y * canvas.width + x) * 4;
+
+        if (data[idx + 3] < 20) continue;
+
+        let r = adjustChannel(data[idx], blackPoint, whitePoint, gamma);
+        let g = adjustChannel(data[idx+1], blackPoint, whitePoint, gamma);
+        let b = adjustChannel(data[idx+2], blackPoint, whitePoint, gamma);
+
+        if (r < 20 && g < 20 && b < 20) continue;
+
+        let isWhite = (r > 180 && g > 180 && b > 180);
+        let isGreenText = (g > r + 30 && g > b + 30);
+
+        if (isWhite || isGreenText) continue;
+
+        let luma = 0.299 * r + 0.587 * g + 0.114 * b;
+        let diffusionChance = Math.pow(luma / 255, 1.2);
+
+        if (Math.random() < diffusionChance && luma > 15) {
+          outPx[idx] = r;
+          outPx[idx + 1] = g;
+          outPx[idx + 2] = b;
+          outPx[idx + 3] = 255;
+        }
+      }
+    }
+    ctx.putImageData(outImgData, 0, 0);
+  }
+}
+
+function setPngDpi(dataUrl, dpi = 300) {
+  const ppm = Math.round(dpi / 0.0254);
+  const base64 = dataUrl.split(',')[1];
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+
+  const insertIndex = 33;
+  const physChunk = new Uint8Array(21);
+  const view = new DataView(physChunk.buffer);
+  
+  view.setUint32(0, 9);
+  physChunk[4] = 112; 
+  physChunk[5] = 72;  
+  physChunk[6] = 89;  
+  physChunk[7] = 115; 
+  view.setUint32(8, ppm);
+  view.setUint32(12, ppm);
+  physChunk[16] = 1;
+
+  const crc = calculateCRC32(physChunk.subarray(4, 17));
+  view.setUint32(17, crc);
+
+  const finalBytes = new Uint8Array(bytes.length + physChunk.length);
+  finalBytes.set(bytes.subarray(0, insertIndex), 0);
+  finalBytes.set(physChunk, insertIndex);
+  finalBytes.set(bytes.subarray(insertIndex), insertIndex + physChunk.length);
+
+  let newBinary = '';
+  for (let i = 0; i < finalBytes.length; i++) {
+    newBinary += String.fromCharCode(finalBytes[i]);
+  }
+  return 'data:image/png;base64,' + btoa(newBinary);
+}
+
+function calculateCRC32(buf) {
+  let c = 0xffffffff;
+  for (let i = 0; i < buf.length; i++) {
+    c = crcTable[(c ^ buf[i]) & 0xff] ^ (c >>> 8);
+  }
+  return (c ^ 0xffffffff) >>> 0;
+}
+
+const crcTable = [];
+for (let n = 0; n < 256; n++) {
+  let c = n;
+  for (let k = 0; k < 8; k++) {
+    c = (c & 1) ? (0xedb88320 ^ (c >>> 1)) : (c >>> 1);
+  }
+  crcTable[n] = c;
+}
+
+if (downloadBtn) {
+  downloadBtn.addEventListener('click', () => {
+    if (!loadedImage) return;
+
+    try {
+      downloadBtn.textContent = 'Generando archivo...';
+      downloadBtn.disabled = true;
+
+      setTimeout(() => {
+        const originalDataUrl = canvas.toDataURL('image/png', 1.0);
+        const dpiDataUrl = setPngDpi(originalDataUrl, 300);
+
+        const link = document.createElement('a');
+        link.download = 'semitonos_legacy_300dpi.png';
+        link.href = dpiDataUrl;
+        link.click();
+
+        downloadBtn.textContent = 'Descargar Imagen (300 DPI - Transparente)';
+        downloadBtn.disabled = false;
+      }, 100);
+
+    } catch (error) {
+      console.error("Error al descargar:", error);
+      alert("La imagen es demasiado grande para la memoria del navegador.");
+      downloadBtn.textContent = 'Descargar Imagen (300 DPI - Transparente)';
+      downloadBtn.disabled = false;
+    }
+  });
+}
