@@ -151,7 +151,7 @@ function processHalftone() {
   
   const cellSize = Math.max(3, Math.round(180 / lpi));
 
-  // --- 1. DIFUSIÓN / GRANO REAL ORIGINAL (TU FAVORITO) ---
+  // --- 1. DIFUSIÓN / GRANO REAL ORIGINAL ---
   if (currentMethod === 'diffusion_original') {
     ctx.drawImage(loadedImage, 0, 0);
     const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
@@ -397,7 +397,7 @@ function processHalftone() {
       }
     }
 
-  // --- 8. HÍBRIDO LEGACY (SÓLIDOS LIMPIOS + DEGRADADO DE DIFUSIÓN ORGÁNICA CON MICROPUNTOS) ---
+  // --- 8. HÍBRIDO LEGACY (SÓLIDOS LIMPIOS + TRAMA DE CÓMIC PROFESIONAL CON DEGRADADO VIVO) ---
   } else if (currentMethod === 'hybrid_legacy') {
     ctx.drawImage(loadedImage, 0, 0);
     const tempCanvas = document.createElement('canvas');
@@ -407,7 +407,7 @@ function processHalftone() {
     tempCtx.drawImage(loadedImage, 0, 0);
     const data = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height).data;
 
-    // 1. Capa base sólida: Traje blanco y letras verdes intactas
+    // 1. Capa base sólida: Traje blanco y letras verdes 100% nítidos
     const outImgData = ctx.createImageData(canvas.width, canvas.height);
     const outPx = outImgData.data;
 
@@ -430,16 +430,16 @@ function processHalftone() {
     }
     ctx.putImageData(outImgData, 0, 0);
 
-    // 2. Capa de la nebulosa: Degradado fluido con micropuntos redondos y orgánicos (sin líneas de rejilla)
-    const step = Math.max(1, Math.round(180 / (lpi * 2.2)));
+    // 2. Capa de la nebulosa: Trama de micropuntos circulares limpios con ángulo y degradado completo
+    const fineCell = Math.max(3, Math.round(180 / (lpi * 1.2)));
 
-    for (let y = 0; y < canvas.height; y += step) {
-      for (let x = 0; x < canvas.width; x += step) {
-        const rx = x + (Math.random() - 0.5) * step;
-        const ry = y + (Math.random() - 0.5) * step;
-
-        const sampleX = Math.min(Math.max(Math.floor(rx), 0), canvas.width - 1);
-        const sampleY = Math.min(Math.max(Math.floor(ry), 0), canvas.height - 1);
+    for (let y = 0; y < canvas.height; y += fineCell) {
+      for (let x = 0; x < canvas.width; x += fineCell) {
+        const cx = x + fineCell / 2;
+        const cy = y + fineCell / 2;
+        
+        const sampleX = Math.min(Math.max(Math.floor(cx), 0), canvas.width - 1);
+        const sampleY = Math.min(Math.max(Math.floor(cy), 0), canvas.height - 1);
         const idx = (sampleY * canvas.width + sampleX) * 4;
 
         if (data[idx + 3] < 20) continue;
@@ -456,14 +456,20 @@ function processHalftone() {
         if (isWhite || isGreenText) continue;
 
         let luma = 0.299 * r + 0.587 * g + 0.114 * b;
-        // Curva de degradado suave para mantener la transición viva y profunda de la primera imagen
-        let gradientChance = Math.pow(luma / 255, 0.9);
+        // Radio del punto proporcional al brillo para mantener el degradado profundo de la primera foto
+        let radius = (luma / 255) * (fineCell * 0.55);
 
-        if (Math.random() < gradientChance && luma > 10) {
+        if (radius > 0.25) {
+          ctx.save();
+          ctx.translate(cx, cy);
+          ctx.rotate(angleRad);
+          // Color azul vivo y profundo original
           ctx.fillStyle = `rgb(${Math.round(r)},${Math.round(g)},${Math.round(b)})`;
+
           ctx.beginPath();
-          ctx.arc(rx, ry, Math.max(0.8, step * 0.42), 0, Math.PI * 2);
+          ctx.arc(0, 0, radius, 0, Math.PI * 2);
           ctx.fill();
+          ctx.restore();
         }
       }
     }
