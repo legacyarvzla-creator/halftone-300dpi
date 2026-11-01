@@ -151,7 +151,7 @@ function processHalftone() {
   
   const cellSize = Math.max(3, Math.round(180 / lpi));
 
-  // --- 1. DIFUSIÓN / GRANO REAL ORIGINAL ---
+  // --- 1. DIFUSIÓN / GRANO REAL ORIGINAL (TU FAVORITO - INTACTO) ---
   if (currentMethod === 'diffusion_original') {
     ctx.drawImage(loadedImage, 0, 0);
     const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
@@ -396,6 +396,53 @@ function processHalftone() {
         }
       }
     }
+
+  // --- 8. HÍBRIDO LEGACY (SÓLIDOS LIMPIOS + DIFUSIÓN ORGÁNICA SIN REJILLA) ---
+  } else if (currentMethod === 'hybrid_legacy') {
+    ctx.drawImage(loadedImage, 0, 0);
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = loadedImage.width;
+    tempCanvas.height = loadedImage.height;
+    const tempCtx = tempCanvas.getContext('2d', { willReadFrequently: true });
+    tempCtx.drawImage(loadedImage, 0, 0);
+    const data = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height).data;
+
+    const outputData = ctx.createImageData(canvas.width, canvas.height);
+    const outPx = outputData.data;
+
+    for (let y = 0; y < canvas.height; y++) {
+      for (let x = 0; x < canvas.width; x++) {
+        const idx = (y * canvas.width + x) * 4;
+
+        if (data[idx + 3] < 20) continue;
+
+        let r = adjustChannel(data[idx], blackPoint, whitePoint, gamma);
+        let g = adjustChannel(data[idx+1], blackPoint, whitePoint, gamma);
+        let b = adjustChannel(data[idx+2], blackPoint, whitePoint, gamma);
+
+        if (r < 20 && g < 20 && b < 20) continue;
+
+        let isWhite = (r > 180 && g > 180 && b > 180);
+        let isGreenText = (g > r + 30 && g > b + 30);
+
+        if (isWhite || isGreenText) {
+          outPx[idx] = r;
+          outPx[idx + 1] = g;
+          outPx[idx + 2] = b;
+          outPx[idx + 3] = data[idx + 3];
+        } else {
+          let luma = 0.299 * r + 0.587 * g + 0.114 * b;
+          let threshold = (Math.random() - 0.5) * 45;
+          if (luma + threshold > 30) {
+            outPx[idx] = r;
+            outPx[idx + 1] = g;
+            outPx[idx + 2] = b;
+            outPx[idx + 3] = 255;
+          }
+        }
+      }
+    }
+    ctx.putImageData(outputData, 0, 0);
   }
 }
 
