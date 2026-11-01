@@ -218,9 +218,6 @@ function processHalftone() {
   canvas.width = sourceToProcess.width;
   canvas.height = sourceToProcess.height;
 
-  // Limpiar lienzo siempre antes de procesar
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-
   const blackPoint = parseInt(blackPointInput ? blackPointInput.value : 0, 10);
   const whitePoint = parseInt(whitePointInput ? whitePointInput.value : 255, 10);
   const gamma = parseFloat(gammaInput ? gammaInput.value : 1.0);
@@ -262,6 +259,7 @@ function processHalftone() {
 
   // --- 2. DIFUSIÓN / GRANO AJUSTABLE POR LPI ---
   } else if (currentMethod === 'diffusion_variable') {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
     const tempCanvas = document.createElement('canvas');
     tempCanvas.width = sourceToProcess.width;
     tempCanvas.height = sourceToProcess.height;
@@ -303,8 +301,12 @@ function processHalftone() {
       }
     }
 
-  // --- 3. REJILLA CUADRADA (CONSOLIDADOR GARANTIZADO DE CARGA Y TRAMA) ---
+  // --- 3. REJILLA CUADRADA (FALTA POCO: CARGA GARANTIZADA + SILUETA LIMPIA Y PUNTOS EN NEBULOSA) ---
   } else if (currentMethod === 'standard') {
+    // 1. Dibujar imagen original completa para conservar silueta limpia y bordes impecables
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(sourceToProcess, 0, 0);
+
     const tempCanvas = document.createElement('canvas');
     tempCanvas.width = sourceToProcess.width;
     tempCanvas.height = sourceToProcess.height;
@@ -312,9 +314,7 @@ function processHalftone() {
     tempCtx.drawImage(sourceToProcess, 0, 0);
     const data = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height).data;
 
-    // Dibujar primero la base original intacta para bordes vectoriales súper limpios
-    ctx.drawImage(sourceToProcess, 0, 0);
-
+    // 2. Malla de semitonos aplicada SOLO a tonos medios (nebulosa azul)
     for (let y = 0; y < canvas.height; y += cellSize) {
       for (let x = 0; x < canvas.width; x += cellSize) {
         const cx = x + cellSize / 2;
@@ -330,21 +330,18 @@ function processHalftone() {
         let g = adjustChannel(data[idx+1], blackPoint, whitePoint, gamma);
         let b = adjustChannel(data[idx+2], blackPoint, whitePoint, gamma);
 
-        // Si es negro de fondo, lo limpiamos de una vez
+        // Si es fondo negro, lo limpiamos a transparente
         if (r < 20 && g < 20 && b < 20) {
           ctx.clearRect(x, y, cellSize, cellSize);
           continue;
         }
 
-        // Si es blanco (traje de MJ) o color vivo (letras verdes), lo dejamos tal cual (SÓLIDO Y LIMPIO)
-        let isWhite = (r > 190 && g > 190 && b > 190);
-        let isGreenText = (g > r + 30 && g > b + 30);
-
-        if (isWhite || isGreenText) {
-          continue; // No le aplica trama, se queda el trazo original suave
+        // Si es el traje blanco o letras verdes, NO tocar (se quedan 100% sólidos y limpios)
+        if ((r > 180 && g > 180 && b > 180) || (g > r + 30 && g > b + 30)) {
+          continue;
         }
 
-        // Si es la nebulosa azul u otro degradado, le aplicamos la trama de puntos redondos
+        // Para la nebulosa azul, reemplazamos por el punto de semitono
         ctx.clearRect(x, y, cellSize, cellSize);
 
         let luma = 0.299 * r + 0.587 * g + 0.114 * b;
@@ -371,6 +368,7 @@ function processHalftone() {
 
   // --- 4. TRAMADO HEXAGONAL ---
   } else if (currentMethod === 'hexagonal') {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
     const tempCanvas = document.createElement('canvas');
     tempCanvas.width = sourceToProcess.width;
     tempCanvas.height = sourceToProcess.height;
@@ -414,6 +412,7 @@ function processHalftone() {
 
   // --- 5. LÍNEAS DE GRABADO ---
   } else if (currentMethod === 'lines') {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
     const tempCanvas = document.createElement('canvas');
     tempCanvas.width = sourceToProcess.width;
     tempCanvas.height = sourceToProcess.height;
@@ -452,6 +451,7 @@ function processHalftone() {
 
   // --- 6. ANILLOS CONCÉNTRICOS ---
   } else if (currentMethod === 'concentric') {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
     const tempCanvas = document.createElement('canvas');
     tempCanvas.width = sourceToProcess.width;
     tempCanvas.height = sourceToProcess.height;
@@ -471,4 +471,47 @@ function processHalftone() {
         let g = adjustChannel(data[idx+1], blackPoint, whitePoint, gamma);
         let b = adjustChannel(data[idx+2], blackPoint, whitePoint, gamma);
 
-        let
+        let dist = Math.sqrt((x - centerX) ** 2 + (y - centerY) ** 2);
+        let wave = Math.sin(dist / (cellSize * 0.4));
+        let luma = 0.299 * r + 0.587 * g + 0.114 * b;
+        let threshold = 1 - (luma / 255) * 2;
+
+        if (wave > threshold) {
+          ctx.fillStyle = `rgb(${Math.round(r)},${Math.round(g)},${Math.round(b)})`;
+          ctx.fillRect(x, y, 2, 2);
+        }
+      }
+    }
+
+  // --- 7. DIFUMINADO ORGÁNICO ---
+  } else if (currentMethod === 'stochastic_fade') {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = sourceToProcess.width;
+    tempCanvas.height = sourceToProcess.height;
+    const tempCtx = tempCanvas.getContext('2d', { willReadFrequently: true });
+    tempCtx.drawImage(sourceToProcess, 0, 0);
+    const data = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height).data;
+
+    for (let y = 0; y < canvas.height; y += cellSize) {
+      for (let x = 0; x < canvas.width; x += cellSize) {
+        const jitterX = (Math.random() - 0.5) * (cellSize * 0.7);
+        const jitterY = (Math.random() - 0.5) * (cellSize * 0.7);
+        
+        const cx = x + cellSize / 2 + jitterX;
+        const cy = y + cellSize / 2 + jitterY;
+
+        const sampleX = Math.min(Math.max(Math.floor(cx), 0), canvas.width - 1);
+        const sampleY = Math.min(Math.max(Math.floor(cy), 0), canvas.height - 1);
+        const idx = (sampleY * canvas.width + sampleX) * 4;
+
+        if (data[idx + 3] < 20 || (data[idx] < 25 && data[idx+1] < 25 && data[idx+2] < 25)) continue;
+
+        let r = adjustChannel(data[idx], blackPoint, whitePoint, gamma);
+        let g = adjustChannel(data[idx+1], blackPoint, whitePoint, gamma);
+        let b = adjustChannel(data[idx+2], blackPoint, whitePoint, gamma);
+
+        let luma = 0.299 * r + 0.587 * g + 0.114 * b;
+        let radius = (luma / 255) * (cellSize * 0.45);
+
+        if (radius > 0.15) {
