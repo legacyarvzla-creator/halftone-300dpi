@@ -397,7 +397,7 @@ function processHalftone() {
       }
     }
 
-  // --- 8. HÍBRIDO LEGACY (AZUL INTENSO ORIGINAL + TRAMADO FINA DE PUNTOS CÓMIC ROTADOS) ---
+  // --- 8. HÍBRIDO LEGACY (AZUL INTENSO DE TU FAVORITO + MICROPUNTOS DE CÓMIC) ---
   } else if (currentMethod === 'hybrid_legacy') {
     ctx.drawImage(loadedImage, 0, 0);
     const tempCanvas = document.createElement('canvas');
@@ -407,7 +407,7 @@ function processHalftone() {
     tempCtx.drawImage(loadedImage, 0, 0);
     const data = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height).data;
 
-    // 1. Capa base: Traje blanco y letras verdes 100% sólidos y limpios
+    // 1. Base sólida intacta: Traje blanco y letras verdes
     const outImgData = ctx.createImageData(canvas.width, canvas.height);
     const outPx = outImgData.data;
 
@@ -430,13 +430,13 @@ function processHalftone() {
     }
     ctx.putImageData(outImgData, 0, 0);
 
-    // 2. Capa de la nebulosa: Trama de puntos finos rotados con saturación e intensidad original preservada
-    const fineCellSize = Math.max(3, Math.round(cellSize * 0.7)); // Puntos más densos y compactos
+    // 2. Nebulosa: Mantenemos la riqueza de color exacto de tu favorito, pero aplicando micropuntos ordenados
+    const fineStep = Math.max(2, Math.round(cellSize * 0.45)); // Puntos muy finos estilo cómic
 
-    for (let y = 0; y < canvas.height; y += fineCellSize) {
-      for (let x = 0; x < canvas.width; x += fineCellSize) {
-        const cx = x + fineCellSize / 2;
-        const cy = y + fineCellSize / 2;
+    for (let y = 0; y < canvas.height; y += fineStep) {
+      for (let x = 0; x < canvas.width; x += fineStep) {
+        const cx = x + fineStep / 2;
+        const cy = y + fineStep / 2;
         const sampleX = Math.min(Math.max(Math.floor(cx), 0), canvas.width - 1);
         const sampleY = Math.min(Math.max(Math.floor(cy), 0), canvas.height - 1);
         const idx = (sampleY * canvas.width + sampleX) * 4;
@@ -455,24 +455,19 @@ function processHalftone() {
         if (isWhite || isGreenText) continue;
 
         let luma = 0.299 * r + 0.587 * g + 0.114 * b;
-        // Escalamos el radio para que mantenga toda la fuerza y el color azul profundo de la imagen
-        let radius = (luma / 255) * (fineCellSize * 0.65);
+        // Combinamos la densidad de puntos con la luminancia para mantener el color azul profundo y vibrante
+        let dotRadius = (luma / 255) * (fineStep * 0.75);
 
-        if (radius > 0.25) {
+        if (dotRadius > 0.3) {
           ctx.save();
           ctx.translate(cx, cy);
           ctx.rotate(angleRad);
-          // Usamos el color RGB original enriquecido para que no pierda fuerza
+          // Usamos el color RGB original enriquecido tal cual tu método favorito
           ctx.fillStyle = `rgb(${Math.round(r)},${Math.round(g)},${Math.round(b)})`;
 
           ctx.beginPath();
-          if (shape === 'round') {
-            ctx.arc(0, 0, radius, 0, Math.PI * 2);
-            ctx.fill();
-          } else {
-            const lineWidth = radius * 1.5;
-            ctx.fillRect(-fineCellSize / 2, -lineWidth / 2, fineCellSize, lineWidth);
-          }
+          ctx.arc(0, 0, dotRadius, 0, Math.PI * 2);
+          ctx.fill();
           ctx.restore();
         }
       }
