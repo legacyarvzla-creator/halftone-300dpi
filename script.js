@@ -22,7 +22,6 @@ const gammaVal = document.getElementById('gammaVal');
 const canvas = document.getElementById('canvas');
 const ctx = canvas ? canvas.getContext('2d', { willReadFrequently: true }) : null;
 
-// Controles de Zoom
 const zoomInBtn = document.getElementById('zoomInBtn');
 const zoomOutBtn = document.getElementById('zoomOutBtn');
 const zoomResetBtn = document.getElementById('zoomResetBtn');
@@ -71,16 +70,12 @@ window.resetInput = function(id, defaultValue) {
 
 if (cropBgToggle) {
   cropBgToggle.addEventListener('change', () => {
-    if (cropBgToggle.checked) {
-      if (cropThresholdGroup) {
-        cropThresholdGroup.style.opacity = '1';
-        cropThresholdGroup.style.pointerEvents = 'auto';
-      }
-    } else {
-      if (cropThresholdGroup) {
-        cropThresholdGroup.style.opacity = '0.5';
-        cropThresholdGroup.style.pointerEvents = 'none';
-      }
+    if (cropBgToggle.checked && cropThresholdGroup) {
+      cropThresholdGroup.style.opacity = '1';
+      cropThresholdGroup.style.pointerEvents = 'auto';
+    } else if (cropThresholdGroup) {
+      cropThresholdGroup.style.opacity = '0.5';
+      cropThresholdGroup.style.pointerEvents = 'none';
     }
     if (loadedImage) processHalftone();
   });
@@ -230,6 +225,7 @@ function processHalftone() {
 
   // --- 1. DIFUSIÓN / GRANO REAL ORIGINAL ---
   if (currentMethod === 'diffusion_original') {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
     const tempCanvas = document.createElement('canvas');
     tempCanvas.width = sourceToProcess.width;
     tempCanvas.height = sourceToProcess.height;
@@ -301,11 +297,9 @@ function processHalftone() {
       }
     }
 
-  // --- 3. REJILLA CUADRADA (FALTA POCO: CARGA GARANTIZADA + SILUETA LIMPIA Y PUNTOS EN NEBULOSA) ---
+  // --- 3. REJILLA CUADRADA ---
   } else if (currentMethod === 'standard') {
-    // 1. Dibujar imagen original completa para conservar silueta limpia y bordes impecables
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.drawImage(sourceToProcess, 0, 0);
 
     const tempCanvas = document.createElement('canvas');
     tempCanvas.width = sourceToProcess.width;
@@ -314,7 +308,30 @@ function processHalftone() {
     tempCtx.drawImage(sourceToProcess, 0, 0);
     const data = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height).data;
 
-    // 2. Malla de semitonos aplicada SOLO a tonos medios (nebulosa azul)
+    // 1. Dibujamos los bordes y zonas sólidas intactas (traje blanco y letras verdes)
+    const outImgData = ctx.createImageData(canvas.width, canvas.height);
+    const outPx = outImgData.data;
+
+    for (let i = 0; i < data.length; i += 4) {
+      if (data[i + 3] < 20) continue;
+
+      let r = adjustChannel(data[i], blackPoint, whitePoint, gamma);
+      let g = adjustChannel(data[i+1], blackPoint, whitePoint, gamma);
+      let b = adjustChannel(data[i+2], blackPoint, whitePoint, gamma);
+
+      let isWhite = (r > 180 && g > 180 && b > 180);
+      let isGreenText = (g > r + 30 && g > b + 30);
+
+      if (isWhite || isGreenText) {
+        outPx[i] = r;
+        outPx[i+1] = g;
+        outPx[i+2] = b;
+        outPx[i+3] = data[i+3];
+      }
+    }
+    ctx.putImageData(outImgData, 0, 0);
+
+    // 2. Dibujamos la trama de semitono a 30 LPI únicamente en la nebulosa azul
     for (let y = 0; y < canvas.height; y += cellSize) {
       for (let x = 0; x < canvas.width; x += cellSize) {
         const cx = x + cellSize / 2;
@@ -330,19 +347,12 @@ function processHalftone() {
         let g = adjustChannel(data[idx+1], blackPoint, whitePoint, gamma);
         let b = adjustChannel(data[idx+2], blackPoint, whitePoint, gamma);
 
-        // Si es fondo negro, lo limpiamos a transparente
-        if (r < 20 && g < 20 && b < 20) {
-          ctx.clearRect(x, y, cellSize, cellSize);
-          continue;
-        }
+        if (r < 20 && g < 20 && b < 20) continue;
 
-        // Si es el traje blanco o letras verdes, NO tocar (se quedan 100% sólidos y limpios)
-        if ((r > 180 && g > 180 && b > 180) || (g > r + 30 && g > b + 30)) {
-          continue;
-        }
+        let isWhite = (r > 180 && g > 180 && b > 180);
+        let isGreenText = (g > r + 30 && g > b + 30);
 
-        // Para la nebulosa azul, reemplazamos por el punto de semitono
-        ctx.clearRect(x, y, cellSize, cellSize);
+        if (isWhite || isGreenText) continue;
 
         let luma = 0.299 * r + 0.587 * g + 0.114 * b;
         let radius = (luma / 255) * (cellSize * 0.58);
@@ -515,3 +525,105 @@ function processHalftone() {
         let radius = (luma / 255) * (cellSize * 0.45);
 
         if (radius > 0.15) {
+          ctx.save();
+          ctx.translate(cx, cy);
+          ctx.rotate(angleRad);
+          ctx.fillStyle = `rgb(${Math.round(r)},${Math.round(g)},${Math.round(b)})`;
+
+          ctx.beginPath();
+          if (shape === 'round') {
+            ctx.arc(0, 0, radius, 0, Math.PI * 2);
+            ctx.fill();
+          } else {
+            ctx.fillRect(-cellSize / 2, -radius / 2, cellSize, radius);
+          }
+          ctx.restore();
+        }
+      }
+    }
+  }
+}
+
+function setPngDpi(dataUrl, dpi = 300) {
+  const ppm = Math.round(dpi / 0.0254);
+  const base64 = dataUrl.split(',')[1];
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+
+  const insertIndex = 33;
+  const physChunk = new Uint8Array(21);
+  const view = new DataView(physChunk.buffer);
+  
+  view.setUint32(0, 9);
+  physChunk[4] = 112; 
+  physChunk[5] = 72;  
+  physChunk[6] = 89;  
+  physChunk[7] = 115; 
+  view.setUint32(8, ppm);
+  view.setUint32(12, ppm);
+  physChunk[16] = 1;
+
+  const crc = calculateCRC32(physChunk.subarray(4, 17));
+  view.setUint32(17, crc);
+
+  const finalBytes = new Uint8Array(bytes.length + physChunk.length);
+  finalBytes.set(bytes.subarray(0, insertIndex), 0);
+  finalBytes.set(physChunk, insertIndex);
+  finalBytes.set(bytes.subarray(insertIndex), insertIndex + physChunk.length);
+
+  let newBinary = '';
+  for (let i = 0; i < finalBytes.length; i++) {
+    newBinary += String.fromCharCode(finalBytes[i]);
+  }
+  return 'data:image/png;base64,' + btoa(newBinary);
+}
+
+function calculateCRC32(buf) {
+  let c = 0xffffffff;
+  for (let i = 0; i < buf.length; i++) {
+    c = crcTable[(c ^ buf[i]) & 0xff] ^ (c >>> 8);
+  }
+  return (c ^ 0xffffffff) >>> 0;
+}
+
+const crcTable = [];
+for (let n = 0; n < 256; n++) {
+  let c = n;
+  for (let k = 0; k < 8; k++) {
+    c = (c & 1) ? (0xedb88320 ^ (c >>> 1)) : (c >>> 1);
+  }
+  crcTable[n] = c;
+}
+
+if (downloadBtn) {
+  downloadBtn.addEventListener('click', () => {
+    if (!loadedImage) return;
+
+    try {
+      downloadBtn.textContent = 'Generando archivo...';
+      downloadBtn.disabled = true;
+
+      setTimeout(() => {
+        const originalDataUrl = canvas.toDataURL('image/png', 1.0);
+        const dpiDataUrl = setPngDpi(originalDataUrl, 300);
+
+        const link = document.createElement('a');
+        link.download = 'semitonos_legacy_300dpi.png';
+        link.href = dpiDataUrl;
+        link.click();
+
+        downloadBtn.textContent = 'Descargar Imagen (300 DPI - Transparente)';
+        downloadBtn.disabled = false;
+      }, 100);
+
+    } catch (error) {
+      console.error("Error al descargar:", error);
+      alert("La imagen es demasiado grande para la memoria del navegador.");
+      downloadBtn.textContent = 'Descargar Imagen (300 DPI - Transparente)';
+      downloadBtn.disabled = false;
+    }
+  });
+}
