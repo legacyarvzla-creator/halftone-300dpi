@@ -397,7 +397,7 @@ function processHalftone() {
       }
     }
 
-  // --- 8. HÍBRIDO LEGACY (AZUL INTENSO + MICROPUNTOS DE DIFUSIÓN SUAVES) ---
+  // --- 8. HÍBRIDO LEGACY (AZUL INTENSO ORIGINAL + TRAMADO FINA DE PUNTOS CÓMIC ROTADOS) ---
   } else if (currentMethod === 'hybrid_legacy') {
     ctx.drawImage(loadedImage, 0, 0);
     const tempCanvas = document.createElement('canvas');
@@ -407,14 +407,39 @@ function processHalftone() {
     tempCtx.drawImage(loadedImage, 0, 0);
     const data = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height).data;
 
-    const outputData = ctx.createImageData(canvas.width, canvas.height);
-    const outPx = outputData.data;
+    // 1. Capa base: Traje blanco y letras verdes 100% sólidos y limpios
+    const outImgData = ctx.createImageData(canvas.width, canvas.height);
+    const outPx = outImgData.data;
 
-    const step = Math.max(2, Math.round(cellSize * 0.5)); // Micropuntos más finos y densos
+    for (let i = 0; i < data.length; i += 4) {
+      if (data[i + 3] < 20) continue;
 
-    for (let y = 0; y < canvas.height; y++) {
-      for (let x = 0; x < canvas.width; x++) {
-        const idx = (y * canvas.width + x) * 4;
+      let r = adjustChannel(data[i], blackPoint, whitePoint, gamma);
+      let g = adjustChannel(data[i+1], blackPoint, whitePoint, gamma);
+      let b = adjustChannel(data[i+2], blackPoint, whitePoint, gamma);
+
+      let isWhite = (r > 180 && g > 180 && b > 180);
+      let isGreenText = (g > r + 30 && g > b + 30);
+
+      if (isWhite || isGreenText) {
+        outPx[i] = r;
+        outPx[i+1] = g;
+        outPx[i+2] = b;
+        outPx[i+3] = data[i+3];
+      }
+    }
+    ctx.putImageData(outImgData, 0, 0);
+
+    // 2. Capa de la nebulosa: Trama de puntos finos rotados con saturación e intensidad original preservada
+    const fineCellSize = Math.max(3, Math.round(cellSize * 0.7)); // Puntos más densos y compactos
+
+    for (let y = 0; y < canvas.height; y += fineCellSize) {
+      for (let x = 0; x < canvas.width; x += fineCellSize) {
+        const cx = x + fineCellSize / 2;
+        const cy = y + fineCellSize / 2;
+        const sampleX = Math.min(Math.max(Math.floor(cx), 0), canvas.width - 1);
+        const sampleY = Math.min(Math.max(Math.floor(cy), 0), canvas.height - 1);
+        const idx = (sampleY * canvas.width + sampleX) * 4;
 
         if (data[idx + 3] < 20) continue;
 
@@ -427,27 +452,31 @@ function processHalftone() {
         let isWhite = (r > 180 && g > 180 && b > 180);
         let isGreenText = (g > r + 30 && g > b + 30);
 
-        if (isWhite || isGreenText) {
-          // Sólidos limpios intactos (traje y letras)
-          outPx[idx] = r;
-          outPx[idx + 1] = g;
-          outPx[idx + 2] = b;
-          outPx[idx + 3] = data[idx + 3];
-        } else {
-          // Nebulosa: Mantenemos el azul intenso original con un tramado de micropuntos orgánicos
-          let luma = 0.299 * r + 0.587 * g + 0.114 * b;
-          let pattern = ((x % step === 0) && (y % step === 0)) || (Math.random() < (luma / 255) * 0.7);
-          
-          if (pattern && luma > 15) {
-            outPx[idx] = r;
-            outPx[idx + 1] = g;
-            outPx[idx + 2] = b;
-            outPx[idx + 3] = 255;
+        if (isWhite || isGreenText) continue;
+
+        let luma = 0.299 * r + 0.587 * g + 0.114 * b;
+        // Escalamos el radio para que mantenga toda la fuerza y el color azul profundo de la imagen
+        let radius = (luma / 255) * (fineCellSize * 0.65);
+
+        if (radius > 0.25) {
+          ctx.save();
+          ctx.translate(cx, cy);
+          ctx.rotate(angleRad);
+          // Usamos el color RGB original enriquecido para que no pierda fuerza
+          ctx.fillStyle = `rgb(${Math.round(r)},${Math.round(g)},${Math.round(b)})`;
+
+          ctx.beginPath();
+          if (shape === 'round') {
+            ctx.arc(0, 0, radius, 0, Math.PI * 2);
+            ctx.fill();
+          } else {
+            const lineWidth = radius * 1.5;
+            ctx.fillRect(-fineCellSize / 2, -lineWidth / 2, fineCellSize, lineWidth);
           }
+          ctx.restore();
         }
       }
     }
-    ctx.putImageData(outputData, 0, 0);
   }
 }
 
