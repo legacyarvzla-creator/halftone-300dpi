@@ -113,11 +113,6 @@ if (imageInput) {
         loadedImage = img;
         canvas.width = img.width;
         canvas.height = img.height;
-        if (ctx) {
-          ctx.clearRect(0, 0, canvas.width, canvas.height);
-          ctx.drawImage(img, 0, 0);
-        }
-
         currentZoom = 1.0;
         updateZoomDisplay();
         processHalftone();
@@ -223,7 +218,7 @@ function processHalftone() {
   canvas.width = sourceToProcess.width;
   canvas.height = sourceToProcess.height;
 
-  // Limpiar lienzo inicial
+  // Limpiar lienzo siempre antes de procesar
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
   const blackPoint = parseInt(blackPointInput ? blackPointInput.value : 0, 10);
@@ -308,12 +303,8 @@ function processHalftone() {
       }
     }
 
-  // --- 3. REJILLA CUADRADA (TRAJE Y LETRAS SUAVES + NEBULOSA CON TRAMA DE PUNTOS) ---
+  // --- 3. REJILLA CUADRADA (CONSOLIDADOR GARANTIZADO DE CARGA Y TRAMA) ---
   } else if (currentMethod === 'standard') {
-    // Paso A: Dibujamos la imagen completa de fondo para conservar todos los bordes limpios del traje y letras
-    ctx.drawImage(sourceToProcess, 0, 0);
-
-    // Paso B: Creamos una copia para leer los colores originales de la nebulosa
     const tempCanvas = document.createElement('canvas');
     tempCanvas.width = sourceToProcess.width;
     tempCanvas.height = sourceToProcess.height;
@@ -321,11 +312,8 @@ function processHalftone() {
     tempCtx.drawImage(sourceToProcess, 0, 0);
     const data = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height).data;
 
-    // Paso C: Creamos una capa temporal limpia para pintar únicamente los puntos de semitono de la nebulosa
-    const halftoneCanvas = document.createElement('canvas');
-    halftoneCanvas.width = canvas.width;
-    halftoneCanvas.height = canvas.height;
-    const hCtx = halftoneCanvas.getContext('2d', { willReadFrequently: true });
+    // Dibujar primero la base original intacta para bordes vectoriales súper limpios
+    ctx.drawImage(sourceToProcess, 0, 0);
 
     for (let y = 0; y < canvas.height; y += cellSize) {
       for (let x = 0; x < canvas.width; x += cellSize) {
@@ -342,74 +330,44 @@ function processHalftone() {
         let g = adjustChannel(data[idx+1], blackPoint, whitePoint, gamma);
         let b = adjustChannel(data[idx+2], blackPoint, whitePoint, gamma);
 
-        if (r < 15 && g < 15 && b < 15) continue;
-
-        let maxC = Math.max(r, g, b);
-        let minC = Math.min(r, g, b);
-        let saturation = maxC === 0 ? 0 : (maxC - minC) / maxC;
-
-        // Si es blanco sólido (traje) o color muy saturado (letras verdes), lo saltamos para que quede intacto
-        if ((r > 180 && g > 180 && b > 180) || (saturation > 0.35 && maxC > 100)) {
+        // Si es negro de fondo, lo limpiamos de una vez
+        if (r < 20 && g < 20 && b < 20) {
+          ctx.clearRect(x, y, cellSize, cellSize);
           continue;
         }
+
+        // Si es blanco (traje de MJ) o color vivo (letras verdes), lo dejamos tal cual (SÓLIDO Y LIMPIO)
+        let isWhite = (r > 190 && g > 190 && b > 190);
+        let isGreenText = (g > r + 30 && g > b + 30);
+
+        if (isWhite || isGreenText) {
+          continue; // No le aplica trama, se queda el trazo original suave
+        }
+
+        // Si es la nebulosa azul u otro degradado, le aplicamos la trama de puntos redondos
+        ctx.clearRect(x, y, cellSize, cellSize);
 
         let luma = 0.299 * r + 0.587 * g + 0.114 * b;
         let radius = (luma / 255) * (cellSize * 0.58);
 
         if (radius > 0.15) {
-          hCtx.save();
-          hCtx.translate(cx, cy);
-          hCtx.rotate(angleRad);
-          hCtx.fillStyle = `rgb(${Math.round(r)},${Math.round(g)},${Math.round(b)})`;
+          ctx.save();
+          ctx.translate(cx, cy);
+          ctx.rotate(angleRad);
+          ctx.fillStyle = `rgb(${Math.round(r)},${Math.round(g)},${Math.round(b)})`;
 
-          hCtx.beginPath();
+          ctx.beginPath();
           if (shape === 'round') {
-            hCtx.arc(0, 0, radius, 0, Math.PI * 2);
-            hCtx.fill();
+            ctx.arc(0, 0, radius, 0, Math.PI * 2);
+            ctx.fill();
           } else {
             const lineWidth = radius * 1.5;
-            hCtx.fillRect(-cellSize / 2, -lineWidth / 2, cellSize, lineWidth);
+            ctx.fillRect(-cellSize / 2, -lineWidth / 2, cellSize, lineWidth);
           }
-          hCtx.restore();
+          ctx.restore();
         }
       }
     }
-
-    // Paso D: Obtenemos los datos de píxeles originales y de la trama generada para fusionarlos inteligentemente
-    const baseImgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    const basePx = baseImgData.data;
-    const halftoneImgData = hCtx.getImageData(0, 0, canvas.width, canvas.height);
-    const halfPx = halftoneImgData.data;
-
-    const finalOutput = ctx.createImageData(canvas.width, canvas.height);
-    const finalPx = finalOutput.data;
-
-    for (let i = 0; i < basePx.length; i += 4) {
-      let r = data[i], g = data[i+1], b = data[i+2], a = data[i+3];
-      if (a < 20) continue;
-
-      let maxC = Math.max(r, g, b);
-      let minC = Math.min(r, g, b);
-      let saturation = maxC === 0 ? 0 : (maxC - minC) / maxC;
-
-      // Si es traje blanco o letras verdes, preservamos el píxel original limpio sin pixelación
-      if ((r > 180 && g > 180 && b > 180) || (saturation > 0.35 && maxC > 100)) {
-        finalPx[i] = r;
-        finalPx[i+1] = g;
-        finalPx[i+2] = b;
-        finalPx[i+3] = a;
-      } else {
-        // En la zona de la nebulosa, colocamos el punto de semitono generado
-        if (halfPx[i+3] > 0) {
-          finalPx[i] = halfPx[i];
-          finalPx[i+1] = halfPx[i+1];
-          finalPx[i+2] = halfPx[i+2];
-          finalPx[i+3] = halfPx[i+3];
-        }
-      }
-    }
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.putImageData(finalOutput, 0, 0);
 
   // --- 4. TRAMADO HEXAGONAL ---
   } else if (currentMethod === 'hexagonal') {
@@ -513,148 +471,4 @@ function processHalftone() {
         let g = adjustChannel(data[idx+1], blackPoint, whitePoint, gamma);
         let b = adjustChannel(data[idx+2], blackPoint, whitePoint, gamma);
 
-        let dist = Math.sqrt((x - centerX) ** 2 + (y - centerY) ** 2);
-        let wave = Math.sin(dist / (cellSize * 0.4));
-        let luma = 0.299 * r + 0.587 * g + 0.114 * b;
-        let threshold = 1 - (luma / 255) * 2;
-
-        if (wave > threshold) {
-          ctx.fillStyle = `rgb(${Math.round(r)},${Math.round(g)},${Math.round(b)})`;
-          ctx.fillRect(x, y, 2, 2);
-        }
-      }
-    }
-
-  // --- 7. DIFUMINADO ORGÁNICO ---
-  } else if (currentMethod === 'stochastic_fade') {
-    const tempCanvas = document.createElement('canvas');
-    tempCanvas.width = sourceToProcess.width;
-    tempCanvas.height = sourceToProcess.height;
-    const tempCtx = tempCanvas.getContext('2d', { willReadFrequently: true });
-    tempCtx.drawImage(sourceToProcess, 0, 0);
-    const data = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height).data;
-
-    for (let y = 0; y < canvas.height; y += cellSize) {
-      for (let x = 0; x < canvas.width; x += cellSize) {
-        const jitterX = (Math.random() - 0.5) * (cellSize * 0.7);
-        const jitterY = (Math.random() - 0.5) * (cellSize * 0.7);
-        
-        const cx = x + cellSize / 2 + jitterX;
-        const cy = y + cellSize / 2 + jitterY;
-
-        const sampleX = Math.min(Math.max(Math.floor(cx), 0), canvas.width - 1);
-        const sampleY = Math.min(Math.max(Math.floor(cy), 0), canvas.height - 1);
-        const idx = (sampleY * canvas.width + sampleX) * 4;
-
-        if (data[idx + 3] < 20 || (data[idx] < 25 && data[idx+1] < 25 && data[idx+2] < 25)) continue;
-
-        let r = adjustChannel(data[idx], blackPoint, whitePoint, gamma);
-        let g = adjustChannel(data[idx+1], blackPoint, whitePoint, gamma);
-        let b = adjustChannel(data[idx+2], blackPoint, whitePoint, gamma);
-
-        let luma = 0.299 * r + 0.587 * g + 0.114 * b;
-        let radius = (luma / 255) * (cellSize * 0.45);
-
-        if (radius > 0.15) {
-          ctx.save();
-          ctx.translate(cx, cy);
-          ctx.rotate(angleRad);
-          ctx.fillStyle = `rgb(${Math.round(r)},${Math.round(g)},${Math.round(b)})`;
-
-          ctx.beginPath();
-          if (shape === 'round') {
-            ctx.arc(0, 0, radius, 0, Math.PI * 2);
-            ctx.fill();
-          } else {
-            ctx.fillRect(-cellSize / 2, -radius / 2, cellSize, radius);
-          }
-          ctx.restore();
-        }
-      }
-    }
-  }
-}
-
-function setPngDpi(dataUrl, dpi = 300) {
-  const ppm = Math.round(dpi / 0.0254);
-  const base64 = dataUrl.split(',')[1];
-  const binary = atob(base64);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) {
-    bytes[i] = binary.charCodeAt(i);
-  }
-
-  const insertIndex = 33;
-  const physChunk = new Uint8Array(21);
-  const view = new DataView(physChunk.buffer);
-  
-  view.setUint32(0, 9);
-  physChunk[4] = 112; 
-  physChunk[5] = 72;  
-  physChunk[6] = 89;  
-  physChunk[7] = 115; 
-  view.setUint32(8, ppm);
-  view.setUint32(12, ppm);
-  physChunk[16] = 1;
-
-  const crc = calculateCRC32(physChunk.subarray(4, 17));
-  view.setUint32(17, crc);
-
-  const finalBytes = new Uint8Array(bytes.length + physChunk.length);
-  finalBytes.set(bytes.subarray(0, insertIndex), 0);
-  finalBytes.set(physChunk, insertIndex);
-  finalBytes.set(bytes.subarray(insertIndex), insertIndex + physChunk.length);
-
-  let newBinary = '';
-  for (let i = 0; i < finalBytes.length; i++) {
-    newBinary += String.fromCharCode(finalBytes[i]);
-  }
-  return 'data:image/png;base64,' + btoa(newBinary);
-}
-
-function calculateCRC32(buf) {
-  let c = 0xffffffff;
-  for (let i = 0; i < buf.length; i++) {
-    c = crcTable[(c ^ buf[i]) & 0xff] ^ (c >>> 8);
-  }
-  return (c ^ 0xffffffff) >>> 0;
-}
-
-const crcTable = [];
-for (let n = 0; n < 256; n++) {
-  let c = n;
-  for (let k = 0; k < 8; k++) {
-    c = (c & 1) ? (0xedb88320 ^ (c >>> 1)) : (c >>> 1);
-  }
-  crcTable[n] = c;
-}
-
-if (downloadBtn) {
-  downloadBtn.addEventListener('click', () => {
-    if (!loadedImage) return;
-
-    try {
-      downloadBtn.textContent = 'Generando archivo...';
-      downloadBtn.disabled = true;
-
-      setTimeout(() => {
-        const originalDataUrl = canvas.toDataURL('image/png', 1.0);
-        const dpiDataUrl = setPngDpi(originalDataUrl, 300);
-
-        const link = document.createElement('a');
-        link.download = 'semitonos_legacy_300dpi.png';
-        link.href = dpiDataUrl;
-        link.click();
-
-        downloadBtn.textContent = 'Descargar Imagen (300 DPI - Transparente)';
-        downloadBtn.disabled = false;
-      }, 100);
-
-    } catch (error) {
-      console.error("Error al descargar:", error);
-      alert("La imagen es demasiado grande para la memoria del navegador.");
-      downloadBtn.textContent = 'Descargar Imagen (300 DPI - Transparente)';
-      downloadBtn.disabled = false;
-    }
-  });
-}
+        let
