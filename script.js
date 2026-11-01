@@ -397,7 +397,7 @@ function processHalftone() {
       }
     }
 
-  // --- 8. HÍBRIDO LEGACY (SÓLIDOS LIMPIOS + TRAMA DE CÓMIC PROFESIONAL CON DEGRADADO VIVO) ---
+  // --- 8. HÍBRIDO LEGACY (MÁSCARA ANTITRAJE ESTRICTA + TRAMA DE PUNTOS FINOS) ---
   } else if (currentMethod === 'hybrid_legacy') {
     ctx.drawImage(loadedImage, 0, 0);
     const tempCanvas = document.createElement('canvas');
@@ -407,7 +407,7 @@ function processHalftone() {
     tempCtx.drawImage(loadedImage, 0, 0);
     const data = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height).data;
 
-    // 1. Capa base sólida: Traje blanco y letras verdes 100% nítidos
+    // 1. Capa base sólida estricta: Protege el traje blanco y los textos de cualquier punto encima
     const outImgData = ctx.createImageData(canvas.width, canvas.height);
     const outPx = outImgData.data;
 
@@ -418,10 +418,10 @@ function processHalftone() {
       let g = adjustChannel(data[i+1], blackPoint, whitePoint, gamma);
       let b = adjustChannel(data[i+2], blackPoint, whitePoint, gamma);
 
-      let isWhite = (r > 180 && g > 180 && b > 180);
-      let isGreenText = (g > r + 30 && g > b + 30);
+      // Máscara estricta para el traje blanco y letras
+      let isWhiteSuitOrText = (r > 150 && g > 150 && b > 150) || (g > r + 20 && g > b + 20);
 
-      if (isWhite || isGreenText) {
+      if (isWhiteSuitOrText) {
         outPx[i] = r;
         outPx[i+1] = g;
         outPx[i+2] = b;
@@ -430,8 +430,8 @@ function processHalftone() {
     }
     ctx.putImageData(outImgData, 0, 0);
 
-    // 2. Capa de la nebulosa: Trama de micropuntos circulares limpios con ángulo y degradado completo
-    const fineCell = Math.max(3, Math.round(180 / (lpi * 1.2)));
+    // 2. Capa de la nebulosa: Trama de micropuntos limpios con ángulo, totalmente separada del traje
+    const fineCell = Math.max(3, Math.round(180 / (lpi * 1.3)));
 
     for (let y = 0; y < canvas.height; y += fineCell) {
       for (let x = 0; x < canvas.width; x += fineCell) {
@@ -450,20 +450,17 @@ function processHalftone() {
 
         if (r < 20 && g < 20 && b < 20) continue;
 
-        let isWhite = (r > 180 && g > 180 && b > 180);
-        let isGreenText = (g > r + 30 && g > b + 30);
-
-        if (isWhite || isGreenText) continue;
+        // Evitamos que los puntos se pinten en zonas del traje blanco
+        let isWhiteSuitOrText = (r > 150 && g > 150 && b > 150) || (g > r + 20 && g > b + 20);
+        if (isWhiteSuitOrText) continue;
 
         let luma = 0.299 * r + 0.587 * g + 0.114 * b;
-        // Radio del punto proporcional al brillo para mantener el degradado profundo de la primera foto
-        let radius = (luma / 255) * (fineCell * 0.55);
+        let radius = (luma / 255) * (fineCell * 0.52);
 
         if (radius > 0.25) {
           ctx.save();
           ctx.translate(cx, cy);
           ctx.rotate(angleRad);
-          // Color azul vivo y profundo original
           ctx.fillStyle = `rgb(${Math.round(r)},${Math.round(g)},${Math.round(b)})`;
 
           ctx.beginPath();
